@@ -13,7 +13,14 @@ import requests
 import re
 import json
 import google.generativeai as genai
+from dotenv import load_dotenv
 
+# Завантажуємо змінні середовища
+load_dotenv('B.env')
+
+# --- Логування ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Налаштування ---
 api_id = 27300988
@@ -24,19 +31,28 @@ channel_id = '@uctovbus'
 admin_ids = [1249361958]  # ваш Telegram ID
 admin_usernames = ['professional012']  # ваш нікнейм
 
+# Google Generative AI налаштування
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyBqQqQqQqQqQqQqQqQqQqQqQqQqQqQqQq')
+if GEMINI_API_KEY and GEMINI_API_KEY != 'AIzaSyBqQqQqQqQqQqQqQqQqQqQqQqQqQqQqQq':
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    AI_ENABLED = True
+else:
+    AI_ENABLED = False
+    logger.warning("Google Generative AI API ключ не налаштований. Використовуються fallback опитування.")
+
 emojis = list("🌟😢🧂🤑💃👏👋🤭🤪🤔😧🤦😛🤨👍🐍🥰☕😀😍🫐🇺🇦⌨️😎🎩😳😕😱🏃😂✍️🤓☔️😭🙃😷🤤😉🤡🙂")
 karmadata_file = "karma_data.json"
 active_polls = {}
 character_data_file = "character_data.json"
+funpoll_cache_file = "funpoll_cache.json"
+poll_creation_locks = {}  # Для захисту від дублювання опитувань
+
 try:
     with open(character_data_file, "r", encoding="utf-8") as f:
         character_data = json.load(f)
 except FileNotFoundError:
     character_data = {}
-
-# --- Логування ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # --- Кешування останніх питань funpoll ---
 def load_funpoll_cache():
@@ -47,12 +63,19 @@ def load_funpoll_cache():
         return []
 
 def save_funpoll_cache(cache):
-    with open(funpoll_cache_file, "w", encoding="utf-8") as f:
-        json.dump(cache, f, ensure_ascii=False, indent=4)
+    try:
+        with open(funpoll_cache_file, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
 
+# Ініціалізуємо кеш
 funpoll_cache = load_funpoll_cache()
 
-# --- Жартівливі гороскопи ---
+# --- Функція збереження даних персонажів ---
+def save_character_data(data):
+    with open(character_data_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- Жартівливі відповіді для гри Так чи Ні ---
 yesno_answers = [
@@ -72,6 +95,107 @@ yesno_answers = [
     "Так, але тільки якщо ти посміхнешся!",
     "Ні, але завтра все зміниться!"
 ]
+
+# --- Рандомні слова для створення опитувань ---
+random_subjects = [
+    "колір", "їжа", "напій", "фільм", "музика", "гра", "книга", "спорт", 
+    "погода", "сезон", "день тижня", "час доби", "тварина", "рослина",
+    "транспорт", "место", "професія", "хобі", "емоція", "активність",
+    "предмет", "технологія", "мистецтво", "наука", "подія", "річ", "ідея"
+]
+
+random_questions = [
+    "Який твій улюблений {subject}?",
+    "Що ти думаєш про {subject}?",
+    "Якби ти міг вибрати {subject}, що б це було?",
+    "Що найкраще в {subject}?",
+    "Якби ти міг змінити {subject}, що б ти змінив?",
+    "Що найгірше в {subject}?",
+    "Якби ти міг мати {subject}, що б це було?",
+    "Що найцікавіше в {subject}?",
+    "Якби ти міг створити {subject}, що б це було?",
+    "Що найдивніше в {subject}?"
+]
+
+# --- Функція для генерації рандомних відповідей ---
+def generate_random_options(subject, question_type):
+    """Генерує логічні відповіді залежно від типу питання"""
+    
+    # Відповіді для різних типів питань
+    if question_type == "preference":
+        # Для питань про улюблене/вибір
+        preference_words = [
+            "Перший", "Другий", "Третій", "Четвертий",
+            "Найкращий", "Найгірший", "Середній", "Звичайний",
+            "Улюблений", "Нелюбий", "Нейтральний", "Спеціальний"
+        ]
+        return random.sample(preference_words, 4)
+    
+    elif question_type == "opinion":
+        # Для питань про думки/ставлення
+        opinion_words = [
+            "Дуже", "Трохи", "Не дуже", "Зовсім ні",
+            "Позитивно", "Негативно", "Нейтрально", "Змішано",
+            "Схвалюю", "Не схвалюю", "Байдуже", "Не впевнений"
+        ]
+        return random.sample(opinion_words, 4)
+    
+    elif question_type == "action":
+        # Для питань про дії
+        action_words = [
+            "Завжди", "Іноді", "Рідко", "Ніколи",
+            "Часто", "Раніше", "Тепер", "Пізніше",
+            "Регулярно", "Періодично", "Випадково", "Планово"
+        ]
+        return random.sample(action_words, 4)
+    
+    elif question_type == "possibility":
+        # Для питань про можливості/створення
+        possibility_words = [
+            "Можливо", "Неможливо", "Спробую", "Не спробую",
+            "Реалістично", "Фантастично", "Складено", "Просто",
+            "Цікаво", "Нудно", "Корисно", "Некорисно"
+        ]
+        return random.sample(possibility_words, 4)
+    
+    elif question_type == "funny":
+        # Для жартівливих питань
+        funny_words = [
+            "Смішно", "Дивно", "Цікаво", "Нудно",
+            "Абсурдно", "Логічно", "Неочікувано", "Звичайно",
+            "Креативно", "Банально", "Оригінально", "Копія"
+        ]
+        return random.sample(funny_words, 4)
+    
+    else:
+        # Загальні відповіді
+        general_words = [
+            "Так", "Ні", "Можливо", "Не знаю",
+            "Варто", "Не варто", "Можна", "Не можна",
+            "Краще", "Гірше", "Однаково", "Не порівняти"
+        ]
+        return random.sample(general_words, 4)
+
+# --- Функція для отримання відповідних варіантів ---
+def get_options_for_subject(subject):
+    return generate_random_options(subject, "general")
+
+def get_options_for_question_type(question, subject):
+    """Отримує відповідні варіанти залежно від типу питання"""
+    
+    # Визначаємо тип питання
+    if any(word in question for word in ["улюблений", "вибрати", "найкраще", "найцікавіше"]):
+        question_type = "preference"
+    elif any(word in question for word in ["думаєш", "найгірше", "найдивніше", "найсмішніше"]):
+        question_type = "opinion"
+    elif any(word in question for word in ["міг", "створити", "змінити", "мати"]):
+        question_type = "possibility"
+    elif any(word in question for word in ["робиш", "робив", "робити"]):
+        question_type = "action"
+    else:
+        question_type = "general"
+    
+    return generate_random_options(subject, question_type)
 
 # --- Функція перевірки адміністратора ---
 def is_admin(user):
@@ -187,50 +311,63 @@ async def process_luckypoll(client):
     }
 
 async def generate_funny_poll():
-    prompt = (
-        "Згенеруй одне жартівливе, абсурдне або кумедне питання для опитування в Telegram і 4 варіанти відповідей до нього. "
-        "Відповіді мають бути короткими, веселими, не образливими, різними за змістом. "
-        "Відповідь поверни у форматі JSON: {\"question\": \"...\", \"options\": [\"...\", \"...\", ...]}"
-    )
+    """Створює жартівливе опитування через ШІ або fallback"""
     global funpoll_cache
-    max_attempts = 5
-    for _ in range(max_attempts):
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt
-        )
-        text = response.text
-        if not text:
-            continue
-        import re, json
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            data = json.loads(match.group(0))
-            question = data["question"].strip()
-            options = [opt.strip() for opt in data["options"]]
-            if question in funpoll_cache:
-                continue
-            if not (question and options and 2 < len(options) <= 10):
-                continue
-            funpoll_cache.append(question)
-            if len(funpoll_cache) > 20:
-                funpoll_cache = funpoll_cache[-20:]
-            save_funpoll_cache(funpoll_cache)
-            return question, options
-    return None, None
+    
+    if AI_ENABLED:
+        question, options = await generate_ai_funny_poll()
+    else:
+        # Fallback без ШІ
+        funny_subjects = ["овоч", "фрукт", "тварина", "предмет", "емоція", "активність"]
+        funny_questions = [
+            "Якби ти був {subject}, яким би ти був?",
+            "Що ти робиш коли {subject}?",
+            "Що ти думаєш про {subject}?"
+        ]
+        subject = random.choice(funny_subjects)
+        question_template = random.choice(funny_questions)
+        question = question_template.format(subject=subject)
+        options = generate_random_options(subject, "funny")
+    
+    # Додаємо до кешу
+    try:
+        funpoll_cache.append(question)
+        if len(funpoll_cache) > 20:
+            funpoll_cache = funpoll_cache[-20:]
+        save_funpoll_cache(funpoll_cache)
+    except Exception as e:
+        logger.warning(f"Помилка збереження кешу: {e}")
+    
+    return question, options
 
 async def generate_horoscope_gemini():
-    prompt = (
-        "Згенеруй короткий, веселий, абсурдний або кумедний гороскоп для користувача Telegram. "
-        "Відповідь має бути українською мовою, не більше 2-3 речень, без образ, з позитивним настроєм. "
-        "Поверни лише текст гороскопу, без додаткових пояснень."
-    )
-    response = client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=prompt
-    )
-    text = response.text.strip() if hasattr(response, 'text') else str(response)
-    return text or "Сьогодні твоя карма зросте на 0.0001%! (fallback)"
+    # Використовуємо рандомні гороскопи замість AI
+    horoscopes = [
+        "Сьогодні твоя карма зросте на 0.0001%! Зірки кажуть, що варто з'їсти печиво.",
+        "Меркурій у ретрограді, тому твої повідомлення можуть загубитися. Але не хвилюйся!",
+        "Сонце в зеніті, а це означає, що сьогодні твоя удача буде на висоті!",
+        "Луна в першій чверті, тому варто почати нову справу. Наприклад, з'їсти морозиво.",
+        "Венера в аспекті з Юпітером - це означає, що сьогодні ти знайдеш щось приємне.",
+        "Сатурн ретроградний, але це не означає, що твоя піца буде холодною.",
+        "Марс активний, тому сьогодні варто зробити щось сміливе. Наприклад, з'їсти олівці.",
+        "Уран несподіваний, тому сьогодні може статися щось дивне. Але це буде весело!",
+        "Нептун містичний, тому сьогодні твої мрії можуть збутися. Особливо про морозиво.",
+        "Плутон трансформує, тому сьогодні ти можеш стати кращою версією себе. Або просто з'їсти шоколадку."
+    ]
+    
+    return random.choice(horoscopes)
+
+async def create_random_poll():
+    """Створює рандомне опитування через ШІ або fallback"""
+    if AI_ENABLED:
+        return await generate_ai_poll()
+    else:
+        # Fallback без ШІ
+        subject = random.choice(random_subjects)
+        question_template = random.choice(random_questions)
+        question = question_template.format(subject=subject)
+        options = get_options_for_question_type(question, subject)
+        return question, options
 
 # --- Обробники команд ---
 
@@ -248,7 +385,8 @@ async def start(client, message):
         BotCommand("yesno", "Гра Так чи Ні"),
         BotCommand("help", "Допомога"),
         BotCommand("character", "Отримати персонажа"),
-        BotCommand("funpoll", "Створити жартівливе опитування")
+        BotCommand("funpoll", "Створити жартівливе опитування"),
+        BotCommand("randompoll", "Створити рандомне опитування")
     ]
     await client.set_bot_commands(commands)
     await message.reply_text("Привіт! Я бот для рандомних опитувань 🎯")
@@ -303,7 +441,8 @@ async def show_help(client, message):
             [InlineKeyboardButton("👤 Персонаж", callback_data="character")],
             [InlineKeyboardButton("🔮 Гороскоп", callback_data="horoscope")],
             [InlineKeyboardButton("❓ Так чи Ні", callback_data="yesno")],
-            [InlineKeyboardButton("🎉 Жартівливе опитування", callback_data="funpoll")]
+            [InlineKeyboardButton("🎉 Жартівливе опитування", callback_data="funpoll")],
+            [InlineKeyboardButton("🎲 Рандомне опитування", callback_data="randompoll")]
         ])
 
         help_text = (
@@ -319,7 +458,8 @@ async def show_help(client, message):
             "/yesno – гра Так чи Ні\n"
             "/help – допомога\n"
             "/character – отримати персонажа\n"
-            "/funpoll – створити жартівливе опитування"
+            "/funpoll – створити жартівливе опитування\n"
+            "/randompoll – створити рандомне опитування"
         )
         
         # Перевіряємо, чи є користувач і чи він адміністратор
@@ -607,13 +747,19 @@ async def fun_poll_command(client, message):
     if not is_admin(message.from_user):
         await message.reply_text("⛔️ Команда доступна лише для адміністраторів")
         return
-    await message.reply_text("Генерую жартівливе опитування... ⏳")
-    chat_id = str(message.chat.id)
-    question, options = await generate_funny_poll()
-    if not question or not options:
-        await message.reply_text("Не вдалося згенерувати опитування. Спробуйте ще раз.")
+    
+    # Перевіряємо, чи вже створюється опитування
+    if message.chat.id in poll_creation_locks:
+        await message.reply_text("⚠️ Опитування вже створюється. Спробуйте пізніше.")
         return
+    
+    poll_creation_locks[message.chat.id] = True
     try:
+        await message.reply_text("Генерую жартівливе опитування... ⏳")
+        question, options = await generate_funny_poll()
+        if not question or not options:
+            await message.reply_text("Не вдалося згенерувати опитування. Спробуйте ще раз.")
+            return
         poll = await client.send_poll(
             chat_id=channel_id,
             question=question,
@@ -624,6 +770,40 @@ async def fun_poll_command(client, message):
         await message.reply_text(f"Опитування надіслано в канал!\nПитання: {question}")
     except Exception as e:
         await message.reply_text(f"Помилка надсилання опитування: {e}")
+    finally:
+        # Звільняємо блокування після завершення
+        if message.chat.id in poll_creation_locks:
+            del poll_creation_locks[message.chat.id]
+
+@app.on_message(filters.command("randompoll"))
+async def random_poll_command(client, message):
+    if not is_admin(message.from_user):
+        await message.reply_text("⛔️ Команда доступна лише для адміністраторів")
+        return
+    
+    # Перевіряємо, чи вже створюється опитування
+    if message.chat.id in poll_creation_locks:
+        await message.reply_text("⚠️ Опитування вже створюється. Спробуйте пізніше.")
+        return
+    
+    poll_creation_locks[message.chat.id] = True
+    try:
+        await message.reply_text("Створюю рандомне опитування... ⏳")
+        question, options = await create_random_poll()
+        poll = await client.send_poll(
+            chat_id=channel_id,
+            question=question,
+            options=options,
+            is_anonymous=True,
+            type=PollType.REGULAR
+        )
+        await message.reply_text(f"Рандомне опитування надіслано в канал!\nПитання: {question}")
+    except Exception as e:
+        await message.reply_text(f"Помилка надсилання опитування: {e}")
+    finally:
+        # Звільняємо блокування після завершення
+        if message.chat.id in poll_creation_locks:
+            del poll_creation_locks[message.chat.id]
 
 # --- Обробники callback-кнопок ---
 
@@ -637,7 +817,7 @@ async def handle_callbacks(client, callback_query):
 
     try:
         # Для всіх callback-ів, які викликають функції з відповіддю, видаляємо повідомлення з кнопками
-        if data in ["top", "horoscope", "funpoll", "character"]:
+        if data in ["top", "horoscope", "funpoll", "character", "randompoll"]:
             try:
                 await msg.delete()
             except Exception as e:
@@ -669,7 +849,21 @@ async def handle_callbacks(client, callback_query):
         elif data == "yesno":
             await msg.reply_text("Використай /yesno та своє питання! Наприклад: /yesno Чи буде щастя?")
         elif data == "funpoll":
-            await fun_poll_command(client, msg)
+            # Створюємо dummy message для функції
+            class DummyMessage:
+                def __init__(self, from_user, reply_text):
+                    self.from_user = from_user
+                    self.reply_text = reply_text
+            dummy_msg = DummyMessage(callback_query.from_user, msg.reply_text)
+            await fun_poll_command(client, dummy_msg)
+        elif data == "randompoll":
+            # Створюємо dummy message для функції
+            class DummyMessage:
+                def __init__(self, from_user, reply_text):
+                    self.from_user = from_user
+                    self.reply_text = reply_text
+            dummy_msg = DummyMessage(callback_query.from_user, msg.reply_text)
+            await random_poll_command(client, dummy_msg)
         else:
             await msg.reply_text("Невідома команда з кнопки.")
     except Exception as e:
@@ -735,6 +929,89 @@ async def handle_poll_answer_raw(client, update, users, chats):
         await client.send_message(int(user_id), f"🎉 Отримано очки!\nЗагальна карма: {user_karma['score']}")
     except Exception as e:
         logger.warning(f"Не можу написати користувачу {user_id}: {e}")
+
+# --- Функції для генерації опитувань через ШІ ---
+async def generate_ai_poll():
+    """Генерує опитування через Google Generative AI"""
+    try:
+        prompt = """
+        Створи одне цікаве питання для опитування в Telegram та 4 варіанти відповідей до нього.
+        
+        Вимоги:
+        - Питання має бути українською мовою
+        - Питання має бути цікавим та актуальним
+        - Відповіді мають бути короткими (1-3 слова)
+        - Відповіді мають бути логічними та різними
+        - Не використовуй образливий контент
+        
+        Поверни у форматі JSON:
+        {
+            "question": "Питання тут",
+            "options": ["Відповідь 1", "Відповідь 2", "Відповідь 3", "Відповідь 4"]
+        }
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        
+        # Шукаємо JSON у відповіді
+        import re
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group(0))
+            question = data.get("question", "").strip()
+            options = [opt.strip() for opt in data.get("options", [])]
+            
+            if question and len(options) == 4:
+                return question, options
+        
+        # Якщо не вдалося розпарсити JSON, повертаємо fallback
+        return "Що ти думаєш про технології?", ["Дуже", "Трохи", "Не дуже", "Зовсім ні"]
+        
+    except Exception as e:
+        logger.error(f"Помилка генерації AI опитування: {e}")
+        return "Що ти думаєш про технології?", ["Дуже", "Трохи", "Не дуже", "Зовсім ні"]
+
+async def generate_ai_funny_poll():
+    """Генерує жартівливе опитування через Google Generative AI"""
+    try:
+        prompt = """
+        Створи одне жартівливе або абсурдне питання для опитування в Telegram та 4 варіанти відповідей до нього.
+        
+        Вимоги:
+        - Питання має бути українською мовою
+        - Питання має бути смішним або абсурдним
+        - Відповіді мають бути короткими (1-3 слова)
+        - Відповіді мають бути смішними або неочікуваними
+        - Не використовуй образливий контент
+        
+        Поверни у форматі JSON:
+        {
+            "question": "Питання тут",
+            "options": ["Відповідь 1", "Відповідь 2", "Відповідь 3", "Відповідь 4"]
+        }
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        
+        # Шукаємо JSON у відповіді
+        import re
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group(0))
+            question = data.get("question", "").strip()
+            options = [opt.strip() for opt in data.get("options", [])]
+            
+            if question and len(options) == 4:
+                return question, options
+        
+        # Якщо не вдалося розпарсити JSON, повертаємо fallback
+        return "Якби ти був овочем, яким би ти був?", ["Картопля", "Морква", "Помідор", "Огірок"]
+        
+    except Exception as e:
+        logger.error(f"Помилка генерації AI жартівливого опитування: {e}")
+        return "Якби ти був овочем, яким би ти був?", ["Картопля", "Морква", "Помідор", "Огірок"]
 
 # --- Запуск ---
 
