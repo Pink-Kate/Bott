@@ -515,7 +515,7 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
-# /character - просто картинка (змінюється щодня)
+# /character - показує нову картинку раз на день
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
@@ -531,16 +531,21 @@ async def character_command(client, message):
 
     user_info = character_data[chat_id].get(user_id, {})
 
-    # Якщо картинка вже була сьогодні — нічого не робимо, просто покажемо нову
-    url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
+    # Якщо персонаж на сьогодні вже створений
+    if user_info.get("last_character_date") == today and "character_url" in user_info:
+        await message.reply_text("❌ Ви вже отримали персонажа сьогодні. Спробуйте завтра!")
+        return
+
+    # Генеруємо нового персонажа
     try:
+        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
             hits = data.get("hits", [])
             if hits:
                 img_url = random.choice(hits)["webformatURL"]
-                # зберігаємо URL та дату
+                # Зберігаємо URL та дату
                 user_info["last_character_date"] = today
                 user_info["character_url"] = img_url
                 character_data[chat_id][user_id] = user_info
@@ -555,7 +560,7 @@ async def character_command(client, message):
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
 
-# /ya - показує ту ж картинку що /character сьогодні + очки
+# /ya - показує того ж персонажа, що створив /character
 @app.on_message(filters.command("ya"))
 async def ya_command(client, message):
     if not message.from_user:
@@ -566,28 +571,19 @@ async def ya_command(client, message):
     user_id = str(message.from_user.id)
     user_info = character_data.get(chat_id, {}).get(user_id, {})
 
-    # беремо картинку сьогодні
-    img_url = user_info.get("character_url")
-    if not img_url:
-        await message.reply_text("Спочатку отримай свого персонажа командою /character")
+    today = datetime.now().date().isoformat()
+
+    # Перевіряємо, чи персонаж існує на сьогодні
+    if user_info.get("last_character_date") != today or "character_url" not in user_info:
+        await message.reply_text("Спочатку отримайте персонажа командою /character")
         return
 
-    # беремо очки користувача
+    img_url = user_info["character_url"]
     score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
 
     caption = f"👤 {message.from_user.first_name}\n✨ Карма: {score}\nСьогодні ви 🌟"
     await message.reply_photo(img_url, caption=caption)
 
-
-
-# --- Команда /ya ---
-@app.on_message(filters.command("ya"))
-async def ya_command(client, message):
-    chat_id = str(message.chat.id)
-    user_id = str(message.from_user.id)
-
-    score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
-    await message.reply_text(f"👤 {message.from_user.first_name}\n✨ Карма: {score}")
 
 
 @app.on_message(filters.command("horoscope"))
