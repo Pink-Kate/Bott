@@ -54,33 +54,7 @@ try:
 except FileNotFoundError:
     character_data = {}
 
-# --- Кешування останніх питань funpoll ---
-def load_funpoll_cache():
-    try:
-        with open(funpoll_cache_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
 
-def save_funpoll_cache(cache):
-    try:
-        with open(funpoll_cache_file, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=4)
-    except Exception:
-        pass
-
-# Ініціалізуємо кеш
-funpoll_cache = load_funpoll_cache()
-
-# --- Функція збереження даних персонажів ---
-def save_character_data(data):
-    with open(character_data_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-
-
-    
-    return generate_random_options(subject, question_type)
 
 # --- Функція перевірки адміністратора ---
 def is_admin(user):
@@ -196,16 +170,6 @@ async def process_luckypoll(client):
     }
 
     
-    # Додаємо до кешу
-    try:
-        funpoll_cache.append(question)
-        if len(funpoll_cache) > 20:
-            funpoll_cache = funpoll_cache[-20:]
-        save_funpoll_cache(funpoll_cache)
-    except Exception as e:
-        logger.warning(f"Помилка збереження кешу: {e}")
-    
-    return question, options
 
 async def generate_horoscope_gemini():
     # Використовуємо рандомні гороскопи замість AI
@@ -539,18 +503,29 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
+from pyrogram import filters
+import requests, random
+from datetime import datetime
+
+# існуюча команда
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
         await message.reply_text("❌ Помилка: не вдалося визначити користувача.")
         return
-    chat_id = str(message.chat.id)
+
     user_id = str(message.from_user.id)
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
     user_info = character_data.get(user_id, {})
-    if user_info.get("last_character_date") == today:
-        await message.reply_text("🔁 Ви вже отримували персонажа сьогодні! Спробуйте завтра.")
+
+    # якщо вже є персонаж на сьогодні → показуємо ту саму картинку
+    if user_info.get("last_character_date") == today and "character_url" in user_info:
+        caption = build_character_caption(message.from_user, user_id)
+        await message.reply_photo(user_info["character_url"], caption=caption)
         return
+
+    # інакше генеруємо нового персонажа
     try:
         url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
         resp = requests.get(url, timeout=10)
@@ -559,10 +534,14 @@ async def character_command(client, message):
             hits = data.get("hits", [])
             if hits:
                 img_url = random.choice(hits)["webformatURL"]
+                # зберігаємо і дату, і url картинки
                 user_info["last_character_date"] = today
+                user_info["character_url"] = img_url
                 character_data[user_id] = user_info
                 save_character_data(character_data)
-                await message.reply_photo(img_url, caption="сьогодні ви")
+
+                caption = build_character_caption(message.from_user, user_id)
+                await message.reply_photo(img_url, caption=caption)
                 return
             else:
                 await message.reply_text("Не знайдено жодної картинки персонажа на Pixabay.")
@@ -571,6 +550,21 @@ async def character_command(client, message):
             await message.reply_text(f"Pixabay API error: {resp.status_code}")
     except Exception as e:
         await message.reply_text(f"Помилка пошуку картинки: {e}")
+
+
+# допоміжна функція для побудови підпису під фото
+def build_character_caption(user, user_id: str) -> str:
+    name = user.first_name
+    # дістаємо карму користувача (якщо немає — ставимо 0)
+    karma = karma_data.get(user_id, {}).get("karma", 0)
+    return f"👤 {name}\n✨ Карма: {karma}\nсьогодні ви 🌟"
+    
+
+# нова команда /я
+@app.on_message(filters.command("Ya"))
+async def ya_command(client, message):
+    await character_command(client, message)
+
 
 @app.on_message(filters.command("horoscope"))
 async def horoscope_command(client, message):
@@ -694,89 +688,8 @@ async def handle_poll_answer_raw(client, update, users, chats):
     except Exception as e:
         logger.warning(f"Не можу написати користувачу {user_id}: {e}")
 
-# --- Функції для генерації опитувань через ШІ ---
-async def generate_ai_poll():
-    """Генерує опитування через Google Generative AI"""
-    try:
-        prompt = """
-        Створи одне цікаве питання для опитування в Telegram та 4 варіанти відповідей до нього.
         
-        Вимоги:
-        - Питання має бути українською мовою
-        - Питання має бути цікавим та актуальним
-        - Відповіді мають бути короткими (1-3 слова)
-        - Відповіді мають бути логічними та різними
-        - Не використовуй образливий контент
         
-        Поверни у форматі JSON:
-        {
-            "question": "Питання тут",
-            "options": ["Відповідь 1", "Відповідь 2", "Відповідь 3", "Відповідь 4"]
-        }
-        """
-        
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # Шукаємо JSON у відповіді
-        import re
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            data = json.loads(match.group(0))
-            question = data.get("question", "").strip()
-            options = [opt.strip() for opt in data.get("options", [])]
-            
-            if question and len(options) == 4:
-                return question, options
-        
-        # Якщо не вдалося розпарсити JSON, повертаємо fallback
-        return "Що ти думаєш про технології?", ["Дуже", "Трохи", "Не дуже", "Зовсім ні"]
-        
-    except Exception as e:
-        logger.error(f"Помилка генерації AI опитування: {e}")
-        return "Що ти думаєш про технології?", ["Дуже", "Трохи", "Не дуже", "Зовсім ні"]
-
-async def generate_ai_funny_poll():
-    """Генерує жартівливе опитування через Google Generative AI"""
-    try:
-        prompt = """
-        Створи одне жартівливе або абсурдне питання для опитування в Telegram та 4 варіанти відповідей до нього.
-        
-        Вимоги:
-        - Питання має бути українською мовою
-        - Питання має бути смішним або абсурдним
-        - Відповіді мають бути короткими (1-3 слова)
-        - Відповіді мають бути смішними або неочікуваними
-        - Не використовуй образливий контент
-        
-        Поверни у форматі JSON:
-        {
-            "question": "Питання тут",
-            "options": ["Відповідь 1", "Відповідь 2", "Відповідь 3", "Відповідь 4"]
-        }
-        """
-        
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # Шукаємо JSON у відповіді
-        import re
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            data = json.loads(match.group(0))
-            question = data.get("question", "").strip()
-            options = [opt.strip() for opt in data.get("options", [])]
-            
-            if question and len(options) == 4:
-                return question, options
-        
-        # Якщо не вдалося розпарсити JSON, повертаємо fallback
-        return "Якби ти був овочем, яким би ти був?", ["Картопля", "Морква", "Помідор", "Огірок"]
-        
-    except Exception as e:
-        logger.error(f"Помилка генерації AI жартівливого опитування: {e}")
-        return "Якби ти був овочем, яким би ти був?", ["Картопля", "Морква", "Помідор", "Огірок"]
-
 # --- Запуск ---
 
 if __name__ == "__main__":
