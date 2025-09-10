@@ -1,19 +1,15 @@
 import os
 import logging
-from datetime import datetime, timedelta
-from random import randint, choice
-from pyrogram.client import Client
-from pyrogram import filters
-from pyrogram.enums import PollType
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
-import traceback
 import time
 import random
+from datetime import datetime, timedelta
 import requests
-import re
 import json
 import google.generativeai as genai
 from dotenv import load_dotenv
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+
 
 # Завантажуємо змінні середовища
 load_dotenv('B.env')
@@ -21,6 +17,7 @@ load_dotenv('B.env')
 # --- Логування ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 # --- Налаштування ---
 api_id = 27300988
@@ -41,7 +38,7 @@ else:
     AI_ENABLED = False
     logger.warning("Google Generative AI API ключ не налаштований. Використовуються fallback опитування.")
 
-emojis = list("🌟😢🧂🤑💃👏👋🤭🤪🤔😧🤦😛🤨👍🐍🥰☕😀😍🫐🇺🇦⌨️😎🎩😳😕😱🏃😂✍️🤓☔️😭🙃😷🤤😉🤡🙂")
+emojis = list("🌟😢🧂🤑💃👏👋🤭🤪🤔😧🤦😛🤨👍🐍🥰☕️😀😍🫐🇺🇦⌨️😎🎩😳😕😱🏃😂✍️🤓☔️😭🙃😷🤤😉🤡🙂")
 karmadata_file = "karma_data.json"
 active_polls = {}
 character_data_file = "character_data.json"
@@ -77,17 +74,27 @@ def save_karma(data):
 
 karma_data = load_karma()
 
-# --- Ініціалізація ---
-session_name = f"Кринжик_{int(time.time())}_{random.randint(1000, 9999)}"
-app = Client(session_name, api_id=api_id, api_hash=api_hash, bot_token=bot_token)
+# --- Постійне ім'я сесії для бота ---
+session_name = "KrinzhikBotSession"
 
-# --- Логіка команд (для повторного використання у команди та callback) ---
+app = Client(
+    name=session_name,
+    api_id=api_id,
+    api_hash=api_hash,
+    bot_token=bot_token
+)
+
+
+logger.info(f"{bot_name} успішно ініціалізовано. AI_ENABLED={AI_ENABLED}")
+# --- Логіка команд (для повторного використання у команді та callback) ---
 
 async def process_spin_wheel(chat_id: str, user_id: str, reply_func):
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     if chat_id not in karma_data:
         karma_data[chat_id] = {}
+
     user_karma = karma_data[chat_id].get(user_id, {"score": 0, "last_spin_date": None})
+
     if user_karma.get("last_spin_date") == today.isoformat():
         await reply_func("🕐 Колесо доступне лише раз на день.")
         return
@@ -100,36 +107,40 @@ async def process_spin_wheel(chat_id: str, user_id: str, reply_func):
 
     await reply_func(f"🎡 Колесо обернулось!\n+{reward} очок!\nЗагальна карма: {user_karma['score']}")
 
+
 async def process_show_top_users(chat_id: str, reply_func, client=None):
     try:
-        if chat_id not in karma_data:
+        if chat_id not in karma_data or not karma_data[chat_id]:
             await reply_func("У цьому чаті ще ніхто не має карми!")
             return
+
         sorted_users = sorted(karma_data[chat_id].items(), key=lambda x: x[1]['score'], reverse=True)
         text = "🏆 Топ 5 гравців цього чату:\n"
+
         for i, (uid, data) in enumerate(sorted_users[:5], 1):
-            if "display_name" in data:
-                display_name = data["display_name"]
-            else:
-                try:
-                    if client:
-                        user = await client.get_users(int(uid))
-                        if user.username:
-                            display_name = f"@{user.username}"
-                        elif user.first_name:
-                            display_name = user.first_name
-                            if user.last_name:
-                                display_name += f" {user.last_name}"
-                        else:
-                            display_name = f"Користувач {uid}"
+            try:
+                if client:
+                    user = await client.get_users(int(uid))
+                    if user.username:
+                        display_name = f"@{user.username}"
+                    elif user.first_name:
+                        display_name = user.first_name
+                        if user.last_name:
+                            display_name += f" {user.last_name}"
                     else:
                         display_name = f"Користувач {uid}"
-                except Exception as e:
+                else:
                     display_name = f"Користувач {uid}"
+            except Exception:
+                display_name = f"Користувач {uid}"
+
             text += f"{i}. {display_name} — {data['score']} очок\n"
+
         await reply_func(text)
+
     except Exception as e:
         await reply_func(f"Помилка при показі топу: {e}")
+
 
 async def process_show_karma(chat_id: str, user_id: str, reply_func, client=None):
     try:
@@ -190,7 +201,6 @@ async def generate_horoscope_gemini():
 
 
 # --- Обробники команд ---
-
 @app.on_message(filters.command("start"))
 async def start(client, message):
     commands = [
@@ -284,7 +294,6 @@ async def show_help(client, message):
     except Exception as e:
         await message.reply_text(f"Виникла помилка: {e}")
         print(traceback.format_exc())
-
 @app.on_message(filters.command("test"))
 async def test_command(client, message):
     try:
@@ -357,9 +366,7 @@ async def set_user_name(client, message):
         
     except Exception as e:
         logger.error(f"Помилка в команді setname: {e}")
-        await message.reply_text(f"Виникла помилка: {e}")
-
-@app.on_message(filters.command("setname_simple"))
+        await message.reply_text(f"Виникла помилка: {e}")@app.on_message(filters.command("setname_simple"))
 async def set_user_name_simple(client, message):
     logger.info(f"Команда setname_simple викликана користувачем {message.from_user.id if message.from_user else 'None'}")
     
@@ -452,7 +459,6 @@ async def set_user_name_reply(client, message):
     except Exception as e:
         logger.error(f"Помилка в команді setname_reply: {e}")
         await message.reply_text(f"Виникла помилка: {e}")
-
 @app.on_message(filters.command("update_users"))
 async def update_users_info(client, message):
     if not is_admin(message.from_user):
@@ -503,11 +509,8 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
-from pyrogram import filters
-import requests, random
-from datetime import datetime
-
 # існуюча команда
+# --- Команда character ---
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
@@ -515,13 +518,14 @@ async def character_command(client, message):
         return
 
     user_id = str(message.from_user.id)
+    chat_id = str(message.chat.id)
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
     user_info = character_data.get(user_id, {})
 
     # якщо вже є персонаж на сьогодні → показуємо ту саму картинку
     if user_info.get("last_character_date") == today and "character_url" in user_info:
-        caption = build_character_caption(message.from_user, user_id)
+        caption = build_character_caption(message.from_user, user_id, chat_id)
         await message.reply_photo(user_info["character_url"], caption=caption)
         return
 
@@ -540,7 +544,7 @@ async def character_command(client, message):
                 character_data[user_id] = user_info
                 save_character_data(character_data)
 
-                caption = build_character_caption(message.from_user, user_id)
+                caption = build_character_caption(message.from_user, user_id, chat_id)
                 await message.reply_photo(img_url, caption=caption)
                 return
             else:
@@ -551,13 +555,15 @@ async def character_command(client, message):
     except Exception as e:
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
-
-# допоміжна функція для побудови підпису під фото
-def build_character_caption(user, user_id: str) -> str:
+# --- Допоміжна функція для підпису під фото ---
+def build_character_caption(user, user_id: str, chat_id: str) -> str:
     name = user.first_name
     # дістаємо карму користувача (якщо немає — ставимо 0)
-    karma = karma_data.get(user_id, {}).get("karma", 0)
-    return f"👤 {name}\n✨ Карма: {karma}\nсьогодні ви 🌟"
+    score = 0
+    if chat_id in karma_data:
+        score = karma_data[chat_id].get(user_id, {}).get("score", 0)
+    return f"👤 {name}\n✨ Карма: {score}\nсьогодні ви 🌟"
+
     
 
 # нова команда /я
@@ -643,45 +649,87 @@ async def admin_panel(client, message):
 
 # --- Обробник голосувань (PollAnswer) ---
 
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
 @app.on_raw_update()
 async def handle_poll_answer_raw(client, update, users, chats):
+    # Перевіряємо тип апдейту
     if update.__class__.__name__ != "UpdatePollAnswer":
         return
 
     user_id = str(update.user_id)
     poll_id = update.poll_id
-    selected_option = update.option_ids[0]
+
+    # Безпечний доступ до option_ids
+    option_ids = getattr(update, "option_ids", None)
+    if not option_ids:
+        # Нема обраних варіантів — нічого не робимо
+        return
+    selected_option = option_ids[0]
+
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     correct_option = active_polls.get(poll_id, {}).get("correct_option_id")
-
     if correct_option is None:
         return
 
-    chat_id = str(update.chat.id)
+    # Безпечний доступ до чату в апдейті
+    chat_obj = getattr(update, "chat", None)
+    if not chat_obj or not getattr(chat_obj, "id", None):
+        # Не можемо визначити чат — пропускаємо
+        return
+    chat_id = str(chat_obj.id)
+
+    # Ініціалізація записів
     if chat_id not in karma_data:
         karma_data[chat_id] = {}
     user_karma = karma_data[chat_id].get(user_id, {"score": 0, "last_vote_date": None, "streak": 0})
-    user_karma["score"] += 1  # участь
 
+    # Нарахування за участь
+    user_karma["score"] = user_karma.get("score", 0) + 1
+
+    # Обробка стрику — безпечний парсинг last_vote_date
     last_vote_str = user_karma.get("last_vote_date")
     if last_vote_str:
-        last_vote_date = datetime.strptime(last_vote_str, '%Y-%m-%dT%H:%M:%S').replace(hour=0, minute=0, second=0, microsecond=0)
-        if last_vote_date == today - timedelta(days=1):
-            user_karma["streak"] = user_karma.get("streak", 0) + 1
-        elif last_vote_date < today - timedelta(days=1):
+        last_vote_date = None
+        try:
+            last_vote_date = datetime.fromisoformat(last_vote_str).replace(hour=0, minute=0, second=0, microsecond=0)
+        except Exception:
+            try:
+                last_vote_date = datetime.strptime(last_vote_str, '%Y-%m-%dT%H:%M:%S').replace(hour=0, minute=0, second=0, microsecond=0)
+            except Exception:
+                last_vote_date = None
+
+        if last_vote_date:
+            if last_vote_date == today - timedelta(days=1):
+                user_karma["streak"] = user_karma.get("streak", 0) + 1
+            elif last_vote_date < today - timedelta(days=1):
+                user_karma["streak"] = 1
+        else:
             user_karma["streak"] = 1
     else:
         user_karma["streak"] = 1
 
-    if user_karma["streak"] >= 3:
+    # Бонуси за стрик
+    if user_karma.get("streak", 0) >= 3:
         user_karma["score"] += 2 + (user_karma["streak"] - 3)
 
+    # Бонус за правильну відповідь
     if selected_option == correct_option:
         user_karma["score"] += 2
 
+    # Оновлюємо дату і зберігаємо
     user_karma["last_vote_date"] = today.isoformat()
     karma_data[chat_id][user_id] = user_karma
     save_karma(karma_data)
+
+    # Повідомлення користувачу (не критично, але зручне)
+    try:
+        await client.send_message(int(user_id), f"🎉 Отримано очки!\nЗагальна карма: {user_karma['score']}")
+    except Exception as e:
+        logger.warning(f"Не можу написати користувачу {user_id}: {e}")
 
     try:
         await client.send_message(int(user_id), f"🎉 Отримано очки!\nЗагальна карма: {user_karma['score']}")
