@@ -77,123 +77,8 @@ def save_character_data(data):
     with open(character_data_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- Жартівливі відповіді для гри Так чи Ні ---
-yesno_answers = [
-    "Так! І навіть не сумнівайся!",
-    "Ні, і краще не перевіряй!",
-    "Можливо... але це не точно.",
-    "Зірки кажуть: так, але з обережністю!",
-    "Ні, але ти можеш спробувати ще раз!",
-    "100% так! (або ні)",
-    "Спробуй ще раз запитати — може відповідь зміниться!",
-    "Так, але тільки якщо ти зробиш селфі з котом!",
-    "Ні, сьогодні не твій день для цього.",
-    "Можливо, але краще з'їж печиво!",
-    "Так, але не розповідай нікому!",
-    "Ні, але не засмучуйся!",
-    "Можливо... Всесвіт ще не вирішив!",
-    "Так, але тільки якщо ти посміхнешся!",
-    "Ні, але завтра все зміниться!"
-]
 
-# --- Рандомні слова для створення опитувань ---
-random_subjects = [
-    "колір", "їжа", "напій", "фільм", "музика", "гра", "книга", "спорт", 
-    "погода", "сезон", "день тижня", "час доби", "тварина", "рослина",
-    "транспорт", "место", "професія", "хобі", "емоція", "активність",
-    "предмет", "технологія", "мистецтво", "наука", "подія", "річ", "ідея"
-]
 
-random_questions = [
-    "Який твій улюблений {subject}?",
-    "Що ти думаєш про {subject}?",
-    "Якби ти міг вибрати {subject}, що б це було?",
-    "Що найкраще в {subject}?",
-    "Якби ти міг змінити {subject}, що б ти змінив?",
-    "Що найгірше в {subject}?",
-    "Якби ти міг мати {subject}, що б це було?",
-    "Що найцікавіше в {subject}?",
-    "Якби ти міг створити {subject}, що б це було?",
-    "Що найдивніше в {subject}?"
-]
-
-# --- Функція для генерації рандомних відповідей ---
-def generate_random_options(subject, question_type):
-    """Генерує логічні відповіді залежно від типу питання"""
-    
-    # Відповіді для різних типів питань
-    if question_type == "preference":
-        # Для питань про улюблене/вибір
-        preference_words = [
-            "Перший", "Другий", "Третій", "Четвертий",
-            "Найкращий", "Найгірший", "Середній", "Звичайний",
-            "Улюблений", "Нелюбий", "Нейтральний", "Спеціальний"
-        ]
-        return random.sample(preference_words, 4)
-    
-    elif question_type == "opinion":
-        # Для питань про думки/ставлення
-        opinion_words = [
-            "Дуже", "Трохи", "Не дуже", "Зовсім ні",
-            "Позитивно", "Негативно", "Нейтрально", "Змішано",
-            "Схвалюю", "Не схвалюю", "Байдуже", "Не впевнений"
-        ]
-        return random.sample(opinion_words, 4)
-    
-    elif question_type == "action":
-        # Для питань про дії
-        action_words = [
-            "Завжди", "Іноді", "Рідко", "Ніколи",
-            "Часто", "Раніше", "Тепер", "Пізніше",
-            "Регулярно", "Періодично", "Випадково", "Планово"
-        ]
-        return random.sample(action_words, 4)
-    
-    elif question_type == "possibility":
-        # Для питань про можливості/створення
-        possibility_words = [
-            "Можливо", "Неможливо", "Спробую", "Не спробую",
-            "Реалістично", "Фантастично", "Складено", "Просто",
-            "Цікаво", "Нудно", "Корисно", "Некорисно"
-        ]
-        return random.sample(possibility_words, 4)
-    
-    elif question_type == "funny":
-        # Для жартівливих питань
-        funny_words = [
-            "Смішно", "Дивно", "Цікаво", "Нудно",
-            "Абсурдно", "Логічно", "Неочікувано", "Звичайно",
-            "Креативно", "Банально", "Оригінально", "Копія"
-        ]
-        return random.sample(funny_words, 4)
-    
-    else:
-        # Загальні відповіді
-        general_words = [
-            "Так", "Ні", "Можливо", "Не знаю",
-            "Варто", "Не варто", "Можна", "Не можна",
-            "Краще", "Гірше", "Однаково", "Не порівняти"
-        ]
-        return random.sample(general_words, 4)
-
-# --- Функція для отримання відповідних варіантів ---
-def get_options_for_subject(subject):
-    return generate_random_options(subject, "general")
-
-def get_options_for_question_type(question, subject):
-    """Отримує відповідні варіанти залежно від типу питання"""
-    
-    # Визначаємо тип питання
-    if any(word in question for word in ["улюблений", "вибрати", "найкраще", "найцікавіше"]):
-        question_type = "preference"
-    elif any(word in question for word in ["думаєш", "найгірше", "найдивніше", "найсмішніше"]):
-        question_type = "opinion"
-    elif any(word in question for word in ["міг", "створити", "змінити", "мати"]):
-        question_type = "possibility"
-    elif any(word in question for word in ["робиш", "робив", "робити"]):
-        question_type = "action"
-    else:
-        question_type = "general"
     
     return generate_random_options(subject, question_type)
 
@@ -310,24 +195,6 @@ async def process_luckypoll(client):
         "created_at": datetime.now()
     }
 
-async def generate_funny_poll():
-    """Створює жартівливе опитування через ШІ або fallback"""
-    global funpoll_cache
-    
-    if AI_ENABLED:
-        question, options = await generate_ai_funny_poll()
-    else:
-        # Fallback без ШІ
-        funny_subjects = ["овоч", "фрукт", "тварина", "предмет", "емоція", "активність"]
-        funny_questions = [
-            "Якби ти був {subject}, яким би ти був?",
-            "Що ти робиш коли {subject}?",
-            "Що ти думаєш про {subject}?"
-        ]
-        subject = random.choice(funny_subjects)
-        question_template = random.choice(funny_questions)
-        question = question_template.format(subject=subject)
-        options = generate_random_options(subject, "funny")
     
     # Додаємо до кешу
     try:
@@ -357,17 +224,6 @@ async def generate_horoscope_gemini():
     
     return random.choice(horoscopes)
 
-async def create_random_poll():
-    """Створює рандомне опитування через ШІ або fallback"""
-    if AI_ENABLED:
-        return await generate_ai_poll()
-    else:
-        # Fallback без ШІ
-        subject = random.choice(random_subjects)
-        question_template = random.choice(random_questions)
-        question = question_template.format(subject=subject)
-        options = get_options_for_question_type(question, subject)
-        return question, options
 
 # --- Обробники команд ---
 
@@ -385,8 +241,6 @@ async def start(client, message):
         BotCommand("yesno", "Гра Так чи Ні"),
         BotCommand("help", "Допомога"),
         BotCommand("character", "Отримати персонажа"),
-        BotCommand("funpoll", "Створити жартівливе опитування"),
-        BotCommand("randompoll", "Створити рандомне опитування")
     ]
     await client.set_bot_commands(commands)
     await message.reply_text("Привіт! Я бот для рандомних опитувань 🎯")
@@ -441,8 +295,6 @@ async def show_help(client, message):
             [InlineKeyboardButton("👤 Персонаж", callback_data="character")],
             [InlineKeyboardButton("🔮 Гороскоп", callback_data="horoscope")],
             [InlineKeyboardButton("❓ Так чи Ні", callback_data="yesno")],
-            [InlineKeyboardButton("🎉 Жартівливе опитування", callback_data="funpoll")],
-            [InlineKeyboardButton("🎲 Рандомне опитування", callback_data="randompoll")]
         ])
 
         help_text = (
@@ -458,8 +310,6 @@ async def show_help(client, message):
             "/yesno – гра Так чи Ні\n"
             "/help – допомога\n"
             "/character – отримати персонажа\n"
-            "/funpoll – створити жартівливе опитування\n"
-            "/randompoll – створити рандомне опитування"
         )
         
         # Перевіряємо, чи є користувач і чи він адміністратор
@@ -742,68 +592,6 @@ async def yesno_command(client, message):
     answer = random.choice(yesno_answers)
     await message.reply_text(f"❓ {question}\n💡 {answer}")
 
-@app.on_message(filters.command("funpoll"))
-async def fun_poll_command(client, message):
-    if not is_admin(message.from_user):
-        await message.reply_text("⛔️ Команда доступна лише для адміністраторів")
-        return
-    
-    # Перевіряємо, чи вже створюється опитування
-    if message.chat.id in poll_creation_locks:
-        await message.reply_text("⚠️ Опитування вже створюється. Спробуйте пізніше.")
-        return
-    
-    poll_creation_locks[message.chat.id] = True
-    try:
-        await message.reply_text("Генерую жартівливе опитування... ⏳")
-        question, options = await generate_funny_poll()
-        if not question or not options:
-            await message.reply_text("Не вдалося згенерувати опитування. Спробуйте ще раз.")
-            return
-        poll = await client.send_poll(
-            chat_id=channel_id,
-            question=question,
-            options=options,
-            is_anonymous=True,
-            type=PollType.REGULAR
-        )
-        await message.reply_text(f"Опитування надіслано в канал!\nПитання: {question}")
-    except Exception as e:
-        await message.reply_text(f"Помилка надсилання опитування: {e}")
-    finally:
-        # Звільняємо блокування після завершення
-        if message.chat.id in poll_creation_locks:
-            del poll_creation_locks[message.chat.id]
-
-@app.on_message(filters.command("randompoll"))
-async def random_poll_command(client, message):
-    if not is_admin(message.from_user):
-        await message.reply_text("⛔️ Команда доступна лише для адміністраторів")
-        return
-    
-    # Перевіряємо, чи вже створюється опитування
-    if message.chat.id in poll_creation_locks:
-        await message.reply_text("⚠️ Опитування вже створюється. Спробуйте пізніше.")
-        return
-    
-    poll_creation_locks[message.chat.id] = True
-    try:
-        await message.reply_text("Створюю рандомне опитування... ⏳")
-        question, options = await create_random_poll()
-        poll = await client.send_poll(
-            chat_id=channel_id,
-            question=question,
-            options=options,
-            is_anonymous=True,
-            type=PollType.REGULAR
-        )
-        await message.reply_text(f"Рандомне опитування надіслано в канал!\nПитання: {question}")
-    except Exception as e:
-        await message.reply_text(f"Помилка надсилання опитування: {e}")
-    finally:
-        # Звільняємо блокування після завершення
-        if message.chat.id in poll_creation_locks:
-            del poll_creation_locks[message.chat.id]
 
 # --- Обробники callback-кнопок ---
 
@@ -814,9 +602,8 @@ async def handle_callbacks(client, callback_query):
     msg = callback_query.message
 
     logger.info(f"CALLBACK: {data} від {user_id}")
-
+    
     try:
-        # Для всіх callback-ів, які викликають функції з відповіддю, видаляємо повідомлення з кнопками
         if data in ["top", "horoscope", "funpoll", "character", "randompoll"]:
             try:
                 await msg.delete()
@@ -824,53 +611,30 @@ async def handle_callbacks(client, callback_query):
                 logger.warning(f"Не вдалося видалити повідомлення з кнопками: {e}")
 
         if data == "wheel":
-            await process_spin_wheel(str(msg.chat.id), user_id, msg.reply_text)
+            await process_spin_wheel(client, msg, user_id)
         elif data == "top":
-            await process_show_top_users(str(msg.chat.id), msg.reply_text, client)
+            await process_show_top_users(client, msg)
         elif data == "karma":
-            await process_show_karma(str(msg.chat.id), user_id, msg.reply_text, client)
+            await process_show_karma(client, msg, user_id)
         elif data == "go":
-            if not is_admin(callback_query.from_user):
+            if not is_admin(msg.chat.id, callback_query.from_user.id):
                 await msg.reply_text("⛔️ Команда доступна лише для адміністраторів")
                 await callback_query.answer()
                 return
-            await callback_query.message.delete()
+            await msg.delete()
             await process_luckypoll(client)
         elif data == "character":
-            class DummyMessage:
-                def __init__(self, from_user, reply_photo, reply_text):
-                    self.from_user = from_user
-                    self.reply_photo = reply_photo
-                    self.reply_text = reply_text
-            dummy_msg = DummyMessage(callback_query.from_user, msg.reply_photo, msg.reply_text)
-            await character_command(client, dummy_msg)
+            await character_command(client, msg)
         elif data == "horoscope":
             await horoscope_command(client, msg)
         elif data == "yesno":
             await msg.reply_text("Використай /yesno та своє питання! Наприклад: /yesno Чи буде щастя?")
-        elif data == "funpoll":
-            # Створюємо dummy message для функції
-            class DummyMessage:
-                def __init__(self, from_user, reply_text):
-                    self.from_user = from_user
-                    self.reply_text = reply_text
-            dummy_msg = DummyMessage(callback_query.from_user, msg.reply_text)
-            await fun_poll_command(client, dummy_msg)
-        elif data == "randompoll":
-            # Створюємо dummy message для функції
-            class DummyMessage:
-                def __init__(self, from_user, reply_text):
-                    self.from_user = from_user
-                    self.reply_text = reply_text
-            dummy_msg = DummyMessage(callback_query.from_user, msg.reply_text)
-            await random_poll_command(client, dummy_msg)
-        else:
-            await msg.reply_text("Невідома команда з кнопки.")
-    except Exception as e:
-        logger.error(f"Помилка в callback: {e}")
-        await msg.reply_text(f"Виникла помилка: {e}")
+    finally:
+        # відповідаємо callback-у, щоб кнопка не "висіла"
+        await callback_query.answer()
 
-    await callback_query.answer()
+
+            
 
 @app.on_message(filters.command("admin"))
 async def admin_panel(client, message):
