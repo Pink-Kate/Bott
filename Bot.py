@@ -62,19 +62,19 @@ def is_admin(user):
             (user.username and user.username in admin_usernames))
 
 # --- Завантаження / збереження карми ---
-def load_karma():
+def load_json(file):
     try:
-        with open(karmadata_file, "r", encoding="utf-8") as f:
+        with open(file, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
 
-def save_karma(data):
-    with open(karmadata_file, "w", encoding="utf-8") as f:
+def save_json(file, data):
+    with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-karma_data = load_karma()
-
+karma_data = load_json(karmadata_file)
+character_data = load_json(character_data_file)
 # --- Постійне ім'я сесії для бота ---
 session_name = "KrinzhikBotSession"
 
@@ -89,24 +89,24 @@ app = Client(
 logger.info(f"{bot_name} успішно ініціалізовано. AI_ENABLED={AI_ENABLED}")
 # --- Логіка команд (для повторного використання у команді та callback) ---
 
-async def process_spin_wheel(chat_id: str, user_id: str, reply_func):
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+async def process_spin_wheel(chat_id, user_id, reply_func):
+    today = datetime.now().date().isoformat()
     if chat_id not in karma_data:
         karma_data[chat_id] = {}
-
     user_karma = karma_data[chat_id].get(user_id, {"score": 0, "last_spin_date": None})
 
-    if user_karma.get("last_spin_date") == today.isoformat():
+    if user_karma.get("last_spin_date") == today:
         await reply_func("🕐 Колесо доступне лише раз на день.")
         return
 
     reward = random.randint(1, 5)
     user_karma["score"] += reward
-    user_karma["last_spin_date"] = today.isoformat()
+    user_karma["last_spin_date"] = today
     karma_data[chat_id][user_id] = user_karma
-    save_karma(karma_data)
+    save_json(karmadata_file, karma_data)
 
     await reply_func(f"🎡 Колесо обернулось!\n+{reward} очок!\nЗагальна карма: {user_karma['score']}")
+
 
 
 async def process_show_top_users(chat_id: str, reply_func, client=None):
@@ -515,48 +515,38 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
-# --- Команда character ---
-# --- Команда /character ---
+# /character - просто картинка (змінюється щодня)
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
-        await message.reply_text("❌ Помилка: не вдалося визначити користувача.")
+        await message.reply_text("❌ Не вдалося визначити користувача.")
         return
 
     chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
-    today = datetime.now().date().isoformat()  # зберігаємо лише дату
+    today = datetime.now().date().isoformat()
 
-    # Ініціалізація структури для чату
     if chat_id not in character_data:
         character_data[chat_id] = {}
 
     user_info = character_data[chat_id].get(user_id, {})
 
-    # якщо персонаж вже був сьогодні → показуємо ту саму картинку
-    if user_info.get("last_character_date") == today and "character_url" in user_info:
-        caption = build_character_caption(message.from_user, chat_id, user_id)
-        await message.reply_photo(user_info["character_url"], caption=caption)
-        return
-
-    # Генеруємо нового персонажа
+    # Якщо картинка вже була сьогодні — нічого не робимо, просто покажемо нову
+    url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
     try:
-        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
             hits = data.get("hits", [])
             if hits:
                 img_url = random.choice(hits)["webformatURL"]
-
-                # зберігаємо дату та URL картинки
+                # зберігаємо URL та дату
                 user_info["last_character_date"] = today
                 user_info["character_url"] = img_url
                 character_data[chat_id][user_id] = user_info
-                save_character_data(character_data)
+                save_json(character_data_file, character_data)
 
-                caption = build_character_caption(message.from_user, chat_id, user_id)
-                await message.reply_photo(img_url, caption=caption)
+                await message.reply_photo(img_url)
             else:
                 await message.reply_text("Не знайдено жодної картинки персонажа на Pixabay.")
         else:
@@ -564,20 +554,40 @@ async def character_command(client, message):
     except Exception as e:
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
-# --- Функція для підпису під картинку ---
-def build_character_caption(user, chat_id, user_id):
-    name = user.first_name
-    karma = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)  # карма з команди wheel
-    return f"👤 {name}\n✨ Карма: {karma}\nсьогодні ви 🌟"
 
-
-
-    
-
-# нова команда /я
-@app.on_message(filters.command("Ya"))
+# /ya - показує ту ж картинку що /character сьогодні + очки
+@app.on_message(filters.command("ya"))
 async def ya_command(client, message):
-    await character_command(client, message)
+    if not message.from_user:
+        await message.reply_text("❌ Не вдалося визначити користувача.")
+        return
+
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    user_info = character_data.get(chat_id, {}).get(user_id, {})
+
+    # беремо картинку сьогодні
+    img_url = user_info.get("character_url")
+    if not img_url:
+        await message.reply_text("Спочатку отримай свого персонажа командою /character")
+        return
+
+    # беремо очки користувача
+    score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
+
+    caption = f"👤 {message.from_user.first_name}\n✨ Карма: {score}\nСьогодні ви 🌟"
+    await message.reply_photo(img_url, caption=caption)
+
+
+
+# --- Команда /ya ---
+@app.on_message(filters.command("ya"))
+async def ya_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+
+    score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
+    await message.reply_text(f"👤 {message.from_user.first_name}\n✨ Карма: {score}")
 
 
 @app.on_message(filters.command("horoscope"))
