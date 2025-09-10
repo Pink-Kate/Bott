@@ -509,7 +509,6 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
-# існуюча команда
 # --- Команда character ---
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
@@ -521,7 +520,10 @@ async def character_command(client, message):
     chat_id = str(message.chat.id)
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
-    user_info = character_data.get(user_id, {})
+    # Створюємо вкладений словник для кожного чату
+    if chat_id not in character_data:
+        character_data[chat_id] = {}
+    user_info = character_data[chat_id].get(user_id, {})
 
     # якщо вже є персонаж на сьогодні → показуємо ту саму картинку
     if user_info.get("last_character_date") == today and "character_url" in user_info:
@@ -541,7 +543,7 @@ async def character_command(client, message):
                 # зберігаємо і дату, і url картинки
                 user_info["last_character_date"] = today
                 user_info["character_url"] = img_url
-                character_data[user_id] = user_info
+                character_data[chat_id][user_id] = user_info
                 save_character_data(character_data)
 
                 caption = build_character_caption(message.from_user, user_id, chat_id)
@@ -563,6 +565,7 @@ def build_character_caption(user, user_id: str, chat_id: str) -> str:
     if chat_id in karma_data:
         score = karma_data[chat_id].get(user_id, {}).get("score", 0)
     return f"👤 {name}\n✨ Карма: {score}\nсьогодні ви 🌟"
+
 
     
 
