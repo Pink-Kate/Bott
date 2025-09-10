@@ -516,28 +516,30 @@ async def show_user_name(client, message):
 PIXABAY_API_KEY = "51035584-230539422b9389684289707a5"
 
 # --- Команда character ---
+# --- Команда /character ---
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
         await message.reply_text("❌ Помилка: не вдалося визначити користувача.")
         return
 
-    user_id = str(message.from_user.id)
     chat_id = str(message.chat.id)
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    user_id = str(message.from_user.id)
+    today = datetime.now().date().isoformat()  # зберігаємо лише дату
 
-    # Створюємо вкладений словник для кожного чату
+    # Ініціалізація структури для чату
     if chat_id not in character_data:
         character_data[chat_id] = {}
+
     user_info = character_data[chat_id].get(user_id, {})
 
-    # якщо вже є персонаж на сьогодні → показуємо ту саму картинку
+    # якщо персонаж вже був сьогодні → показуємо ту саму картинку
     if user_info.get("last_character_date") == today and "character_url" in user_info:
-        caption = build_character_caption(message.from_user, user_id, chat_id)
+        caption = build_character_caption(message.from_user, chat_id, user_id)
         await message.reply_photo(user_info["character_url"], caption=caption)
         return
 
-    # інакше генеруємо нового персонажа
+    # Генеруємо нового персонажа
     try:
         url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
         resp = requests.get(url, timeout=10)
@@ -546,31 +548,28 @@ async def character_command(client, message):
             hits = data.get("hits", [])
             if hits:
                 img_url = random.choice(hits)["webformatURL"]
-                # зберігаємо і дату, і url картинки
+
+                # зберігаємо дату та URL картинки
                 user_info["last_character_date"] = today
                 user_info["character_url"] = img_url
                 character_data[chat_id][user_id] = user_info
                 save_character_data(character_data)
 
-                caption = build_character_caption(message.from_user, user_id, chat_id)
+                caption = build_character_caption(message.from_user, chat_id, user_id)
                 await message.reply_photo(img_url, caption=caption)
-                return
             else:
                 await message.reply_text("Не знайдено жодної картинки персонажа на Pixabay.")
-                return
         else:
             await message.reply_text(f"Pixabay API error: {resp.status_code}")
     except Exception as e:
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
-# --- Допоміжна функція для підпису під фото ---
-def build_character_caption(user, user_id: str, chat_id: str) -> str:
+# --- Функція для підпису під картинку ---
+def build_character_caption(user, chat_id, user_id):
     name = user.first_name
-    # дістаємо карму користувача (якщо немає — ставимо 0)
-    score = 0
-    if chat_id in karma_data:
-        score = karma_data[chat_id].get(user_id, {}).get("score", 0)
-    return f"👤 {name}\n✨ Карма: {score}\nсьогодні ви 🌟"
+    karma = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)  # карма з команди wheel
+    return f"👤 {name}\n✨ Карма: {karma}\nсьогодні ви 🌟"
+
 
 
     
