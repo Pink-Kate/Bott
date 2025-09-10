@@ -2,6 +2,7 @@ import os
 import logging
 import time
 import random
+from random import randint
 from datetime import datetime, timedelta
 import requests
 import json
@@ -99,7 +100,7 @@ async def process_spin_wheel(chat_id: str, user_id: str, reply_func):
         await reply_func("🕐 Колесо доступне лише раз на день.")
         return
 
-    reward = randint(1, 5)
+    reward = random.randint(1, 5)
     user_karma["score"] += reward
     user_karma["last_spin_date"] = today.isoformat()
     karma_data[chat_id][user_id] = user_karma
@@ -248,15 +249,20 @@ async def show_karma_command(client, message):
 async def show_top_users_command(client, message):
     chat_id = str(message.chat.id)
     await process_show_top_users(chat_id, message.reply_text, client)
-
 @app.on_message(filters.command("wheel"))
 async def spin_wheel_command(client, message):
     if not message.from_user:
         await message.reply_text("❌ Помилка: не вдалося визначити користувача. Спробуйте написати боту в приватному повідомленні.")
         return
+
     chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
-    await process_spin_wheel(chat_id, user_id, message.reply_text)
+
+    # Обгортаємо reply_func
+    async def reply_func(text):
+        await message.reply_text(text)
+
+    await process_spin_wheel(chat_id, user_id, reply_func)
 
 @app.on_message(filters.command("help"))
 async def show_help(client, message):
