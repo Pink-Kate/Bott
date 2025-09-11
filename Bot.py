@@ -2,7 +2,7 @@ import os
 import logging
 import time
 import random
-from random import randint
+from random import randint, choice
 from datetime import datetime, timedelta
 import requests
 import json
@@ -10,6 +10,8 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+from pyrogram.enums import PollType
+
 
 
 # Завантажуємо змінні середовища
@@ -39,7 +41,7 @@ else:
     AI_ENABLED = False
     logger.warning("Google Generative AI API ключ не налаштований. Використовуються fallback опитування.")
 
-emojis = list("🌟😢🧂🤑💃👏👋🤭🤪🤔😧🤦😛🤨👍🐍🥰☕️😀😍🫐🇺🇦⌨️😎🎩😳😕😱🏃😂✍️🤓☔️😭🙃😷🤤😉🤡🙂")
+emojis = list("🌟😢🧂🤑💃👏👋🤭🤪🤔😧🤦💻🍷🍺🍔🌮🍎🫑😛🤨👍🐍🥰😀😍🫐🇺🇦⌨😎🎩😳😕😱🏃😂🤓😭🙃😷🤤😉🤡🙂🫲✋🐨🐹🦊🐤🐛🦋🐝🐞🦅🦣🦛🐪🐩🍀🍃🪻🌸🌊🌫🥒🍕🥮🏀🎾🏑🎽🛹🎺🪗🎸🪕🎻🪈🧩🎮🎳🎯♟🎲🏍🚨🚘🪣🧽🧪💈🏺🪞🖼🩷🧡💛🖤💜💟❌💯🔞💤0🎏🪭")
 karmadata_file = "karma_data.json"
 active_polls = {}
 character_data_file = "character_data.json"
@@ -216,6 +218,7 @@ async def start(client, message):
         BotCommand("yesno", "Гра Так чи Ні"),
         BotCommand("help", "Допомога"),
         BotCommand("character", "Отримати персонажа"),
+        BotCommand("Ya", "Мій опис сьогодні"),
     ]
     await client.set_bot_commands(commands)
     await message.reply_text("Привіт! Я бот для рандомних опитувань 🎯")
@@ -275,6 +278,7 @@ async def show_help(client, message):
             [InlineKeyboardButton("👤 Персонаж", callback_data="character")],
             [InlineKeyboardButton("🔮 Гороскоп", callback_data="horoscope")],
             [InlineKeyboardButton("❓ Так чи Ні", callback_data="yesno")],
+            [InlineKeyboardButton("🙃 Мій опис", callback_data="Ya")]
         ])
 
         help_text = (
