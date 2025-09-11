@@ -490,6 +490,35 @@ async def update_users_info(client, message):
     except Exception as e:
         await message.reply_text(f"Помилка оновлення: {e}")
 
+# /reverse - через reply
+@app.on_message(filters.command("reverse") & filters.text)
+async def reverse_command(client, message):
+    if not message.reply_to_message or not message.reply_to_message.text:
+        await message.reply_text("❌ Використання: відповісти на повідомлення командою /reverse")
+        return
+
+    original_text = message.reply_to_message.text
+    reversed_text = original_text[::-1]
+    await message.reply_to_message.reply(f"🔄 {reversed_text}")
+
+
+# /shout - через reply
+@app.on_message(filters.command("shout"))
+async def shout_command(client, message):
+    # Перевірка, що користувач відповів на повідомлення
+    if not message.reply_to_message or not message.reply_to_message.text:
+        await message.reply_text("❌ Використання: відповісти на повідомлення командою /shout")
+        return
+
+    original_text = message.reply_to_message.text
+    shouted_text = original_text.upper()
+    await message.reply_to_message.reply(f"📢 {shouted_text}")
+
+
+
+
+
+
 @app.on_message(filters.command("myname"))
 async def show_user_name(client, message):
     if not message.from_user:
