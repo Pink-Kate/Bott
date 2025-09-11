@@ -14,6 +14,8 @@ from pyrogram.enums import PollType
 
 
 
+app = Client("my_bot")
+
 # Завантажуємо змінні середовища
 load_dotenv('B.env')
 
@@ -222,6 +224,274 @@ async def start(client, message):
     ]
     await client.set_bot_commands(commands)
     await message.reply_text("Привіт! Я бот для рандомних опитувань 🎯")
+
+
+# Завантажуємо дані
+try:
+    with open(karmadata_file, "r", encoding="utf-8") as f:
+        karma_data = json.load(f)
+except FileNotFoundError:
+    karma_data = {}
+
+# --- Функції допомоги ---
+def save_json(file, data):
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def ensure_warrior(chat_id, user_id, username):
+    if chat_id not in karma_data:
+        karma_data[chat_id] = {}
+    if user_id not in karma_data[chat_id]:
+        karma_data[chat_id][user_id] = {}
+
+    user = karma_data[chat_id][user_id]
+
+    # Ініціалізація всіх полів
+    user.setdefault("username", username)
+    user.setdefault("hp", 10)
+    user.setdefault("score", 0)
+    user.setdefault("wins", 0)
+    user.setdefault("hits", 0)
+    user.setdefault("last_kick", "1970-01-01T00:00:00")  # ISO формат дати
+    return user
+
+
+
+
+
+@app.on_message(filters.command("steal"))
+async def steal_command(client, message):
+    if not message.reply_to_message:
+        await message.reply_text("❌ Відповідай на повідомлення суперника, щоб вкрасти!")
+        return
+
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    target_id = str(message.reply_to_message.from_user.id)
+    username = message.from_user.first_name
+    target_name = message.reply_to_message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+    target_data = ensure_warrior(chat_id, target_id, target_name)
+
+    steal_amount = random.randint(1, min(3, target_data["energy"]))
+    user_data["energy"] += steal_amount
+    target_data["energy"] -= steal_amount
+
+    save_json(karmadata_file, karma_data)
+    await message.reply_text(f"🌀 {username} вкрав {steal_amount} енергії у {target_name}!")
+
+
+
+@app.on_message(filters.command("random"))
+async def random_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    username = message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+
+    effect = random.choice(["+hp", "-hp", "+energy", "-energy"])
+    amount = random.randint(1, 3)
+
+    if effect == "+hp":
+        user_data["hp"] += amount
+        text = f"🎲 Щастя! {username} отримав {amount} HP"
+    elif effect == "-hp":
+        user_data["hp"] -= amount
+        text = f"🎲 Невдача! {username} втратив {amount} HP"
+    elif effect == "+energy":
+        user_data["energy"] += amount
+        text = f"🎲 Енергія +{amount} для {username}"
+    else:
+        user_data["energy"] -= amount
+        text = f"🎲 Енергія -{amount} для {username}"
+
+    save_json(karmadata_file, karma_data)
+    await message.reply_text(text)
+
+@app.on_message(filters.command("freeze"))
+async def freeze_command(client, message):
+    if not message.reply_to_message:
+        await message.reply_text("❌ Відповідай на повідомлення суперника командою /freeze")
+        return
+
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    target_id = str(message.reply_to_message.from_user.id)
+    username = message.from_user.first_name
+    target_name = message.reply_to_message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+    target_data = ensure_warrior(chat_id, target_id, target_name)
+
+    target_data["frozen"] = True
+    save_json(karmadata_file, karma_data)
+    await message.reply_text(f"❄️ {username} заморозив {target_name} на один хід!")
+
+@app.on_message(filters.command("luck"))
+async def luck_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    username = message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+
+    roll = random.randint(1, 100)
+    if roll <= 20:
+        gain = random.randint(3, 7)
+        user_data["score"] += gain
+        text = f"💥 Мега-крит! Ви отримали +{gain} очок карми!"
+    elif roll <= 40:
+        loss = random.randint(1, 5)
+        user_data["score"] = max(0, user_data["score"] - loss)
+        text = f"⚠️ Фейл! Ви втратили {loss} очок карми!"
+    else:
+        text = "😎 Нічого не сталося, спробуйте ще раз."
+
+    save_json(karmadata_file, karma_data)
+    await message.reply_text(text)
+
+
+
+
+
+# Таймери і активні атаки
+last_kick_time = {}       # {chat_id: {user_id: datetime}}
+active_attacks = {}       # {chat_id: {target_id: {"attacker": user_id, "time": datetime}}}
+
+# --- Допоміжна функція: ініціалізація воїна ---
+def ensure_warrior(chat_id, user_id, username):
+    if chat_id not in karma_data:
+        karma_data[chat_id] = {}
+    if user_id not in karma_data[chat_id]:
+        karma_data[chat_id][user_id] = {}
+
+    user_data = karma_data[chat_id][user_id]
+
+    # Ініціалізація полів
+    user_data.setdefault("username", username)
+    user_data.setdefault("hp", 10)
+    user_data.setdefault("score", 0)
+    user_data.setdefault("wins", 0)
+    user_data.setdefault("hits", 0)
+    user_data.setdefault("reflected", 0)
+    user_data.setdefault("frozen", False)
+
+    return user_data
+
+# --- Зберегти дані ---
+def save_data():
+    with open(karmadata_file, "w", encoding="utf-8") as f:
+        json.dump(karma_data, f, ensure_ascii=False, indent=2)
+
+# --- /heal ---
+@app.on_message(filters.command("heal"))
+async def heal_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    username = message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+    heal_amount = random.randint(1, 4)
+    user_data["hp"] += heal_amount
+
+    save_data()
+    await message.reply_text(f"💖 {username} відновив {heal_amount} HP!")
+
+# --- /kick ---
+@app.on_message(filters.command("kick"))
+async def kick_command(client, message):
+    if not message.reply_to_message:
+        await message.reply_text("❌ Використовуйте у відповідь на повідомлення суперника!")
+        return
+
+    chat_id = str(message.chat.id)
+    attacker_id = str(message.from_user.id)
+    target_id = str(message.reply_to_message.from_user.id)
+    now = datetime.now()
+
+    last_kick_time.setdefault(chat_id, {})
+    last_time = last_kick_time[chat_id].get(attacker_id)
+    if last_time and now - last_time < timedelta(hours=6):
+        remaining = timedelta(hours=6) - (now - last_time)
+        await message.reply_text(f"⏳ Можна використовувати /kick ще через {str(remaining).split('.')[0]}")
+        return
+
+    last_kick_time[chat_id][attacker_id] = now
+
+    attacker_data = ensure_warrior(chat_id, attacker_id, message.from_user.first_name)
+    target_data = ensure_warrior(chat_id, target_id, message.reply_to_message.from_user.first_name)
+
+    # Реєстрація атаки
+    active_attacks.setdefault(chat_id, {})
+    active_attacks[chat_id][target_id] = {"attacker": attacker_id, "time": now}
+
+    dmg = random.randint(1, 3)
+    target_data["hp"] = max(0, target_data["hp"] - dmg)
+
+    save_data()
+    await message.reply_text(f"🥊 {message.from_user.first_name} вдарив {message.reply_to_message.from_user.first_name} і завдав {dmg} HP шкоди!")
+
+# --- /mirror ---
+@app.on_message(filters.command("mirror"))
+async def mirror_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+
+    if chat_id not in active_attacks or user_id not in active_attacks[chat_id]:
+        await message.reply_text("❌ Немає атаки для відбиття!")
+        return
+
+    attack_info = active_attacks[chat_id][user_id]
+    attacker_id = attack_info["attacker"]
+
+    attacker_data = ensure_warrior(chat_id, attacker_id, "Невідомий")
+    user_data = ensure_warrior(chat_id, user_id, message.from_user.first_name)
+
+    dmg = random.randint(1, 3)
+    attacker_data["hp"] = max(0, attacker_data["hp"] - dmg)
+    user_data["reflected"] += 1
+
+    # Видаляємо атаку після відбиття
+    del active_attacks[chat_id][user_id]
+
+    save_data()
+    await message.reply_text(f"🪞 {message.from_user.first_name} відбив атаку! {attacker_data['username']} отримав {dmg} HP шкоди.")
+
+# --- /warrior ---
+@app.on_message(filters.command("warrior"))
+async def warrior_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    user_data = ensure_warrior(chat_id, user_id, message.from_user.first_name)
+
+    await message.reply_text(f"⚔️ {user_data['username']}\n💚 HP: {user_data['hp']}")
+
+# --- /stats ---
+@app.on_message(filters.command("stats"))
+async def stats_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    user_data = ensure_warrior(chat_id, user_id, message.from_user.first_name)
+
+    await message.reply_text(
+        f"📊 Статистика {user_data['username']}:\n"
+        f"🏆 Виграні бої: {user_data['wins']}\n"
+        f"💖 Очки моралі: {user_data['score']}\n"
+        f"🛡 Відбито атак: {user_data['reflected']}"
+    )
+
+   
+
+
+
+
+
+
+
+
+
 
 @app.on_message(filters.command("go"))
 async def luckypoll_command(client, message):
