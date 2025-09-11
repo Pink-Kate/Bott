@@ -592,10 +592,41 @@ async def emoji_command(client, message):
     character_data[chat_id][user_id] = user_info
     save_json(character_data_file, character_data)
 
-    await message.reply_text(f"Мій настрій сьогодні: {mood}")
+    await message.reply_text(f"Твій муд сьогодні: {mood}")
 
 
-# /ya - показує того ж персонажа + карму + емоції
+# /coffe - скільки чашок кави сьогодні пити
+@app.on_message(filters.command("coffee"))
+async def coffe_command(client, message):
+    if not message.from_user:
+        await message.reply_text("❌ Не вдалося визначити користувача.")
+        return
+
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    today = datetime.now().date().isoformat()
+
+    if chat_id not in character_data:
+        character_data[chat_id] = {}
+
+    user_info = character_data[chat_id].get(user_id, {})
+
+    # Якщо вже є дані на сьогодні → показуємо їх
+    if user_info.get("last_coffee_date") == today and "coffee" in user_info:
+        await message.reply_text(f"Сьогодні ти маєш випити {user_info['coffee']} чашок кави ☕")
+        return
+
+    # Генеруємо кількість кави
+    cups = random.randint(1, 10)
+    user_info["last_coffee_date"] = today
+    user_info["coffee"] = cups
+    character_data[chat_id][user_id] = user_info
+    save_json(character_data_file, character_data)
+
+    await message.reply_text(f"Сьогодні ти маєш випити {cups} чашок кави ☕")
+
+
+# /ya - показує персонажа + карму + емодзі + каву
 @app.on_message(filters.command("ya"))
 async def ya_command(client, message):
     if not message.from_user:
@@ -613,9 +644,9 @@ async def ya_command(client, message):
         await message.reply_text("Спочатку отримайте персонажа командою /character")
         return
 
-    # Перевірка емоцій
+    # Підтягування даних
     mood = user_info.get("emojis", "🤔🤷🙂")
-
+    coffe = user_info.get("coffee", "??")
     img_url = user_info["character_url"]
     score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
 
@@ -623,7 +654,8 @@ async def ya_command(client, message):
         f"👤 {message.from_user.first_name}\n"
         f"✨ Карма: {score}\n"
         f"Сьогодні ви 🌟\n"
-        f"Мій настрій сьогодні: {mood}"
+        f"Мій настрій сьогодні: {mood}\n"
+        f"☕ Кількість кави на сьогодні: {coffe} чашок"
     )
     await message.reply_photo(img_url, caption=caption)
 
