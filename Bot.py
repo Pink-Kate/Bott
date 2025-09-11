@@ -564,7 +564,38 @@ async def character_command(client, message):
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
 
-# /ya - показує того ж персонажа, що створив /character
+# /emoji - генерує три випадкові емодзі на сьогодні
+@app.on_message(filters.command("emoji"))
+async def emoji_command(client, message):
+    if not message.from_user:
+        await message.reply_text("❌ Не вдалося визначити користувача.")
+        return
+
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    today = datetime.now().date().isoformat()
+
+    if chat_id not in character_data:
+        character_data[chat_id] = {}
+
+    user_info = character_data[chat_id].get(user_id, {})
+
+    # Якщо вже є емоції на сьогодні → показуємо їх
+    if user_info.get("last_emoji_date") == today and "emojis" in user_info:
+        await message.reply_text(f"Мій настрій сьогодні: {user_info['emojis']}")
+        return
+
+    # Генеруємо три нові емоції
+    mood = "".join(random.sample(emojis, 3))
+    user_info["last_emoji_date"] = today
+    user_info["emojis"] = mood
+    character_data[chat_id][user_id] = user_info
+    save_json(character_data_file, character_data)
+
+    await message.reply_text(f"Мій настрій сьогодні: {mood}")
+
+
+# /ya - показує того ж персонажа + карму + емоції
 @app.on_message(filters.command("ya"))
 async def ya_command(client, message):
     if not message.from_user:
@@ -577,16 +608,25 @@ async def ya_command(client, message):
 
     today = datetime.now().date().isoformat()
 
-    # Перевіряємо, чи персонаж існує на сьогодні
+    # Перевірка персонажа
     if user_info.get("last_character_date") != today or "character_url" not in user_info:
         await message.reply_text("Спочатку отримайте персонажа командою /character")
         return
 
+    # Перевірка емоцій
+    mood = user_info.get("emojis", "🤔🤷🙂")
+
     img_url = user_info["character_url"]
     score = karma_data.get(chat_id, {}).get(user_id, {}).get("score", 0)
 
-    caption = f"👤 {message.from_user.first_name}\n✨ Карма: {score}\nСьогодні ви 🌟"
+    caption = (
+        f"👤 {message.from_user.first_name}\n"
+        f"✨ Карма: {score}\n"
+        f"Сьогодні ви 🌟\n"
+        f"Мій настрій сьогодні: {mood}"
+    )
     await message.reply_photo(img_url, caption=caption)
+
 
 
 
