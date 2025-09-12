@@ -1,139 +1,145 @@
 {
-  "1249361958": {
-    "score": 37,
-    "last_vote_date": null,
-    "streak": 0,
-    "last_spin_date": "2025-06-29",
-    "display_name": "Катерина",
     "1249361958": {
-      "score": 1,
-      "last_spin_date": "2025-07-01T00:00:00"
-    }
-  },
-  "747439638": {
-    "score": 8,
-    "last_spin_date": "2025-06-25",
-    "display_name": "mayrriinn"
-  },
-  "1452015178": {
-    "score": 1,
-    "last_spin_date": "2025-06-25"
-  },
-  "836019055": {
-    "score": 3,
-    "last_spin_date": "2025-06-25"
-  },
-  "1081615825": {
-    "score": 1,
-    "last_spin_date": "2025-06-25"
-  },
-  "1403724652": {
-    "score": 2,
-    "last_spin_date": "2025-06-25",
-    "display_name": "Зроз"
-  },
-  "-1001472221221": {
-    "1249361958": {
-      "score": 12,
-      "last_spin_date": "2025-07-01T00:00:00",
-      "display_name": "Kate"
-    },
-    "1081615825": {
-      "score": 5,
-      "last_spin_date": "2025-07-01T00:00:00"
-    },
-    "1972965751": {
-      "score": 5,
-      "last_spin_date": "2025-06-30"
+        "score": 37,
+        "last_vote_date": null,
+        "streak": 0,
+        "last_spin_date": "2025-06-29",
+        "display_name": "Катерина",
+        "1249361958": {
+            "score": 7,
+            "last_spin_date": "2025-07-01T00:00:00",
+            "username": "Kate",
+            "hp": 11,
+            "wins": 0,
+            "hits": 0,
+            "reflected": 0,
+            "frozen": false
+        }
     },
     "747439638": {
-      "score": 1,
-      "last_spin_date": "2025-06-30"
+        "score": 8,
+        "last_spin_date": "2025-06-25",
+        "display_name": "mayrriinn"
+    },
+    "1452015178": {
+        "score": 1,
+        "last_spin_date": "2025-06-25"
     },
     "836019055": {
-      "score": 2,
-      "last_spin_date": "2025-06-30",
-      "display_name": "аґубкамарадиндібіаза"
-    },
-    "863918706": {
-      "score": 1,
-      "last_spin_date": "2025-07-01T00:00:00"
-    }
-  },
-  "-1001957446551": {
-    "1249361958": {
-      "score": 7,
-      "last_spin_date": "2025-07-01",
-      "display_name": "Дулзцтгхй👍"
+        "score": 3,
+        "last_spin_date": "2025-06-25"
     },
     "1081615825": {
-      "score": 8,
-      "last_spin_date": "2025-07-01T00:00:00"
+        "score": 1,
+        "last_spin_date": "2025-06-25"
     },
-    "1766815020": {
-      "score": 5,
-      "last_spin_date": "2025-09-10T00:00:00"
-    }
-  },
-  "-1002551778030": {
-    "1081615825": {
-      "score": 9,
-      "last_spin_date": "2025-07-01T00:00:00"
+    "1403724652": {
+        "score": 2,
+        "last_spin_date": "2025-06-25",
+        "display_name": "Зроз"
     },
-    "1249361958": {
-      "score": 20,
-      "last_spin_date": "2025-09-10T00:00:00",
-      "display_name": "Катерина"
+    "-1001472221221": {
+        "1249361958": {
+            "score": 12,
+            "last_spin_date": "2025-07-01T00:00:00",
+            "display_name": "Kate"
+        },
+        "1081615825": {
+            "score": 5,
+            "last_spin_date": "2025-07-01T00:00:00"
+        },
+        "1972965751": {
+            "score": 5,
+            "last_spin_date": "2025-06-30"
+        },
+        "747439638": {
+            "score": 1,
+            "last_spin_date": "2025-06-30"
+        },
+        "836019055": {
+            "score": 2,
+            "last_spin_date": "2025-06-30",
+            "display_name": "аґубкамарадиндібіаза"
+        },
+        "863918706": {
+            "score": 1,
+            "last_spin_date": "2025-07-01T00:00:00"
+        }
     },
-    "747439638": {
-      "score": 3,
-      "last_spin_date": "2025-07-23T00:00:00"
-    }
-  },
-  "1972965751": {
+    "-1001957446551": {
+        "1249361958": {
+            "score": 7,
+            "last_spin_date": "2025-07-01",
+            "display_name": "Дулзцтгхй👍"
+        },
+        "1081615825": {
+            "score": 8,
+            "last_spin_date": "2025-07-01T00:00:00"
+        },
+        "1766815020": {
+            "score": 5,
+            "last_spin_date": "2025-09-10T00:00:00"
+        }
+    },
+    "-1002551778030": {
+        "1081615825": {
+            "score": 9,
+            "last_spin_date": "2025-07-01T00:00:00"
+        },
+        "1249361958": {
+            "score": 20,
+            "last_spin_date": "2025-09-10T00:00:00",
+            "display_name": "Катерина"
+        },
+        "747439638": {
+            "score": 3,
+            "last_spin_date": "2025-07-23T00:00:00"
+        }
+    },
     "1972965751": {
-      "score": 0,
-      "last_vote_date": null,
-      "streak": 0,
-      "display_name": "Siemi"
-    }
-  },
-  "-4858980769": {
-    "1249361958": {
-      "hp": 10,
-      "energy": 10,
-      "score": 1,
-      "xp": 0,
-      "wins": 0,
-      "hits": 0,
-      "frozen": false,
-      "username": "Kate",
-      "last_kick": "2025-09-11T21:32:39.713651",
-      "reflected": 0
+        "1972965751": {
+            "score": 0,
+            "last_vote_date": null,
+            "streak": 0,
+            "display_name": "Siemi"
+        }
     },
-    "5136960141": {
-      "hp": 7,
-      "energy": 1,
-      "score": 0,
-      "xp": 0,
-      "wins": 0,
-      "hits": 0,
-      "frozen": false,
-      "username": "Кейт",
-      "last_kick": "2025-09-11T21:32:17.638021",
-      "reflected": 1
-    },
-    "7827074083": {
-      "hp": 5,
-      "energy": 2,
-      "score": 0,
-      "xp": 0,
-      "wins": 0,
-      "hits": 0,
-      "frozen": true,
-      "username": "Кринжик",
-      "last_kick": "1970-01-01T00:00:00",
-      "reflected": 0
+    "-4858980769": {
+        "1249361958": {
+            "hp": 10,
+            "energy": 10,
+            "score": 1,
+            "xp": 0,
+            "wins": 0,
+            "hits": 0,
+            "frozen": false,
+            "username": "Kate",
+            "last_kick": "2025-09-11T21:32:39.713651",
+            "reflected": 0
+        },
+        "5136960141": {
+            "hp": 5,
+            "energy": 1,
+            "score": 0,
+            "xp": 0,
+            "wins": 0,
+            "hits": 0,
+            "frozen": false,
+            "username": "Кейт",
+            "last_kick": "2025-09-11T21:32:17.638021",
+            "reflected": 1
+        },
+        "7827074083": {
+            "hp": 5,
+            "energy": 2,
+            "score": 0,
+            "xp": 0,
+            "wins": 0,
+            "hits": 0,
+            "frozen": true,
+            "username": "Кринжик",
+            "last_kick": "1970-01-01T00:00:00",
+            "reflected": 0
+        }
     }
-  }
 }

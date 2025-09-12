@@ -399,11 +399,18 @@ async def heal_command(client, message):
     save_data()
     await message.reply_text(f"💖 {username} відновив {heal_amount} HP!")
 
-# --- /kick ---
+# === Зміни: логіка /kick — шанс влучити та cooldown прив'язаний до конкретної пари attacker->target ===
+
+# structure:
+# last_kick_time = { chat_id: { attacker_id: { target_id: datetime } } }
+
+# Константа шансу влучити (наприклад 60%)
+HIT_CHANCE = 0.6
+
 @app.on_message(filters.command("kick"))
 async def kick_command(client, message):
     if not message.reply_to_message:
-        await message.reply_text("❌ Використовуйте у відповідь на повідомлення суперника!")
+        await message.reply_text("❌ Використовуйте /kick у відповідь на повідомлення суперника!")
         return
 
     chat_id = str(message.chat.id)
@@ -411,27 +418,47 @@ async def kick_command(client, message):
     target_id = str(message.reply_to_message.from_user.id)
     now = datetime.now()
 
-    last_kick_time.setdefault(chat_id, {})
-    last_time = last_kick_time[chat_id].get(attacker_id)
+    # Ініціалізуємо структуру для збереження останнього використання по парі attacker->target
+    if chat_id not in last_kick_time:
+        last_kick_time[chat_id] = {}
+    if attacker_id not in last_kick_time[chat_id]:
+        last_kick_time[chat_id][attacker_id] = {}
+
+    # Перевіряємо таймаут саме для цієї пари
+    last_time = last_kick_time[chat_id][attacker_id].get(target_id)
     if last_time and now - last_time < timedelta(hours=6):
         remaining = timedelta(hours=6) - (now - last_time)
-        await message.reply_text(f"⏳ Можна використовувати /kick ще через {str(remaining).split('.')[0]}")
+        await message.reply_text(f"⏳ Ви вже намагались вдарити цього користувача. Можна знову через {str(remaining).split('.')[0]}")
         return
 
-    last_kick_time[chat_id][attacker_id] = now
-
+    # Створюємо записи воїнів
     attacker_data = ensure_warrior(chat_id, attacker_id, message.from_user.first_name)
     target_data = ensure_warrior(chat_id, target_id, message.reply_to_message.from_user.first_name)
 
-    # Реєстрація атаки
-    active_attacks.setdefault(chat_id, {})
-    active_attacks[chat_id][target_id] = {"attacker": attacker_id, "time": now}
+    # Проводимо атаку: шанс влучити
+    hit_roll = random.random()
+    last_kick_time[chat_id][attacker_id][target_id] = now  # витрачаємо використання незалежно від влучання
 
-    dmg = random.randint(1, 3)
-    target_data["hp"] = max(0, target_data["hp"] - dmg)
+    if hit_roll <= HIT_CHANCE:
+        # Удар влучив
+        dmg = random.randint(1, 3)
+        target_data["hp"] = max(0, target_data["hp"] - dmg)
 
-    save_data()
-    await message.reply_text(f"🥊 {message.from_user.first_name} вдарив {message.reply_to_message.from_user.first_name} і завдав {dmg} HP шкоди!")
+        # Реєструємо атаку, щоб mirror міг її відбити (тільки якщо влучили)
+        active_attacks.setdefault(chat_id, {})
+        active_attacks[chat_id][target_id] = {"attacker": attacker_id, "time": now}
+
+        save_json(karmadata_file, karma_data)
+        await message.reply_text(
+            f"🥊 {message.from_user.first_name} влучив(ла) по {message.reply_to_message.from_user.first_name} і завдав(ла) {dmg} HP шкоди!"
+        )
+    else:
+        # Удар промахнувся — шкоди немає, атака не реєструється для mirror
+        save_json(karmadata_file, karma_data)
+        await message.reply_text(
+            f"💨 {message.from_user.first_name} намагався вдарити {message.reply_to_message.from_user.first_name}, але промахнувся(лась)!"
+        )
+
 
 # --- /mirror ---
 @app.on_message(filters.command("mirror"))
@@ -537,43 +564,119 @@ async def spin_wheel_command(client, message):
 
     await process_spin_wheel(chat_id, user_id, reply_func)
 
+# --- /help ---
 @app.on_message(filters.command("help"))
-async def show_help(client, message):
-    try:
-        # Створюємо базову клавіатуру для всіх користувачів
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎡 Колесо", callback_data="wheel")],
-            [InlineKeyboardButton("🏆 Топ", callback_data="top")],
-            [InlineKeyboardButton("🎯 Карма", callback_data="karma")],
-            [InlineKeyboardButton("👤 Персонаж", callback_data="character")],
-            [InlineKeyboardButton("🔮 Гороскоп", callback_data="horoscope")],
-            [InlineKeyboardButton("❓ Так чи Ні", callback_data="yesno")],
-            [InlineKeyboardButton("🙃 Мій опис", callback_data="Ya")]
-        ])
+async def help_command(client, message):
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🗓 Команди дня", callback_data="help_daily"),
+            InlineKeyboardButton("⚔ Команди битв", callback_data="help_battle")
+        ],
+        [
+            InlineKeyboardButton("🛒 Магазин", callback_data="help_shop"),
+            InlineKeyboardButton("✍ Для текстів", callback_data="help_text")
+        ]
+    ])
 
-        help_text = (
-            "🤖 Доступні команди:\n"
-            "/start – привітання\n"
-            "/karma – твоя карма\n"
-            "/top – топ гравців\n"
-            "/wheel – колесо удачі (1 раз/день)\n"
-            "/setname – встановити своє ім'я\n"
-            "/setname_reply – встановити ім'я через reply\n"
-            "/myname – переглянути своє ім'я\n"
-            "/horoscope – міні-гороскоп\n"
-            "/yesno – гра Так чи Ні\n"
-            "/help – допомога\n"
-            "/character – отримати персонажа\n"
+    await message.reply_text(
+        "📖 Оберіть категорію команд:",
+        reply_markup=keyboard
+    )
+
+
+# --- Допоміжні клавіатури для /help ---
+def build_help_main_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🗓 Команди дня", callback_data="help_daily"),
+            InlineKeyboardButton("⚔ Команди битв", callback_data="help_battle")
+        ],
+        [
+            InlineKeyboardButton("🛒 Магазин", callback_data="help_shop"),
+            InlineKeyboardButton("✍ Для текстів", callback_data="help_text")
+        ]
+    ])
+
+def build_back_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Назад", callback_data="help_main")]
+    ])
+
+
+# --- Обробка кнопок ---
+@app.on_callback_query()
+async def help_buttons(client, callback_query):
+    data = callback_query.data
+
+    # Головне меню
+    if data == "help_main":
+        text = "📖 Оберіть категорію команд:"
+        await callback_query.message.edit_text(text, reply_markup=build_help_main_keyboard())
+        await callback_query.answer()
+        return
+
+    # Категорії
+    if data == "help_daily":
+        text = (
+            "🗓 Команди дня\n\n"
+            "/karma – Твоя карма\n"
+            "/top – Топ гравців\n"
+            "/wheel – Колесо удачі\n"
+            "/horoscope – Міні-гороскоп\n"
+            "/ya – Мій опис сьогодні\n"
+            "/coffee – Скільки чашок кави сьогодні"
+            "/setname – Встановити ім’я\n"
+            "/setname_reply – Встановити ім’я через reply\n"
+            "/emoji – Мій настрій трьома емодзі\n"
+            "/myname – Переглянути своє ім'я\n"
+            "/character - Мій персонаж сьогодні"
         )
-        
-        # Перевіряємо, чи є користувач і чи він адміністратор
-        if is_admin(message.from_user):
-            pass
-        
-        await message.reply_text(help_text, reply_markup=keyboard)
-    except Exception as e:
-        await message.reply_text(f"Виникла помилка: {e}")
-        print(traceback.format_exc())
+        await callback_query.message.edit_text(text, reply_markup=build_back_keyboard())
+        await callback_query.answer()
+        return
+
+    if data == "help_battle":
+        text = (
+            "⚔ Команди битв\n\n"
+            "/warrior – Воїн\n"
+            "/stats – Переглянути статистику\n"
+            "/kick – Атакувати суперника\n"
+            "/mirror – Відбити атаку\n"
+            "/heal – Використати цукерку здоров'я\n"
+            "/steal - Вкрасти\n"
+            "/random - випадковий хід\n"
+            "/luck - шанс на мега-крит урон\n"
+            "/freeze - зупинити суперника\n"
+        )
+        await callback_query.message.edit_text(text, reply_markup=build_back_keyboard())
+        await callback_query.answer()
+        return
+
+    if data == "help_shop":
+        text = (
+            "🛒 Магазин\n\n"
+            "/shop – Переглянути товари\n"
+            "/buy <товар> <кількість> – Купити\n"
+            "/inventory – Переглянути інвентар"
+        )
+        await callback_query.message.edit_text(text, reply_markup=build_back_keyboard())
+        await callback_query.answer()
+        return
+
+    if data == "help_text":
+        text = (
+            "✍ Для текстів\n\n"
+            "/shout – Повідомлення капсом\n"
+            "/reverse – Повідомлення задом наперед\n"
+            
+        )
+        await callback_query.message.edit_text(text, reply_markup=build_back_keyboard())
+        await callback_query.answer()
+        return
+
+    # Невідома дія — просто відповідаємо, щоб кнопка не "висіла"
+    await callback_query.answer("Невідома дія.", show_alert=False)
+
 @app.on_message(filters.command("test"))
 async def test_command(client, message):
     try:
