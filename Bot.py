@@ -56,7 +56,8 @@ try:
 except FileNotFoundError:
     character_data = {}
 
-
+# === ДОДАЙ НАВЕРХУ ===
+cooldowns = {}  # { "chatid_userid_command": datetime }
 
 # --- Функція перевірки адміністратора ---
 def is_admin(user):
@@ -283,8 +284,6 @@ async def steal_command(client, message):
 
 
 
-# === ДОДАЙ НАВЕРХУ ===
-cooldowns = {}  # { "chatid_userid_command": datetime }
 
 def can_use_command(chat_id, user_id, command):
     now = datetime.now()
