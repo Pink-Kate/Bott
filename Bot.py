@@ -283,14 +283,35 @@ async def steal_command(client, message):
 
 
 
+# === ДОДАЙ НАВЕРХУ ===
+cooldowns = {}  # { "chatid_userid_command": datetime }
+
+def can_use_command(chat_id, user_id, command):
+    now = datetime.now()
+    key = f"{chat_id}_{user_id}_{command}"
+    if key in cooldowns:
+        last_used = cooldowns[key]
+        if now - last_used < timedelta(hours=6):
+            return False, (timedelta(hours=6) - (now - last_used))
+    cooldowns[key] = now
+    return True, None
+
+
+# === /random ===
 @app.on_message(filters.command("random"))
 async def random_command(client, message):
     chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
     username = message.from_user.first_name
 
-    user_data = ensure_warrior(chat_id, user_id, username)
+    allowed, wait_time = can_use_command(chat_id, user_id, "random")
+    if not allowed:
+        hours, remainder = divmod(wait_time.seconds, 3600)
+        minutes = remainder // 60
+        await message.reply_text(f"⏳ Ти зможеш знову використати /random через {hours} год {minutes} хв.")
+        return
 
+    user_data = ensure_warrior(chat_id, user_id, username)
     effect = random.choice(["+hp", "-hp", "+energy", "-energy"])
     amount = random.randint(1, 3)
 
@@ -310,6 +331,8 @@ async def random_command(client, message):
     save_json(karmadata_file, karma_data)
     await message.reply_text(text)
 
+
+# === /freeze ===
 @app.on_message(filters.command("freeze"))
 async def freeze_command(client, message):
     if not message.reply_to_message:
@@ -322,6 +345,13 @@ async def freeze_command(client, message):
     username = message.from_user.first_name
     target_name = message.reply_to_message.from_user.first_name
 
+    allowed, wait_time = can_use_command(chat_id, user_id, "freeze")
+    if not allowed:
+        hours, remainder = divmod(wait_time.seconds, 3600)
+        minutes = remainder // 60
+        await message.reply_text(f"⏳ Ти зможеш знову використати /freeze через {hours} год {minutes} хв.")
+        return
+
     user_data = ensure_warrior(chat_id, user_id, username)
     target_data = ensure_warrior(chat_id, target_id, target_name)
 
@@ -329,11 +359,20 @@ async def freeze_command(client, message):
     save_json(karmadata_file, karma_data)
     await message.reply_text(f"❄️ {username} заморозив {target_name} на один хід!")
 
+
+# === /luck ===
 @app.on_message(filters.command("luck"))
 async def luck_command(client, message):
     chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
     username = message.from_user.first_name
+
+    allowed, wait_time = can_use_command(chat_id, user_id, "luck")
+    if not allowed:
+        hours, remainder = divmod(wait_time.seconds, 3600)
+        minutes = remainder // 60
+        await message.reply_text(f"⏳ Ти зможеш знову використати /luck через {hours} год {minutes} хв.")
+        return
 
     user_data = ensure_warrior(chat_id, user_id, username)
 
@@ -351,6 +390,7 @@ async def luck_command(client, message):
 
     save_json(karmadata_file, karma_data)
     await message.reply_text(text)
+
 
 
 
