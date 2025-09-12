@@ -579,7 +579,7 @@ async def help_command(client, message):
     ])
 
     await message.reply_text(
-        "📖 Оберіть категорію команд:",
+        "📖 Привіт, Я Кринжик, бот який піднімає настрій :). Обери команду по душі:",
         reply_markup=keyboard
     )
 
@@ -610,7 +610,7 @@ async def help_buttons(client, callback_query):
 
     # Головне меню
     if data == "help_main":
-        text = "📖 Оберіть категорію команд:"
+        text = "📖 Привіт, Я Кринжик, бот який піднімає настрій :). Обери команду по душі:"
         await callback_query.message.edit_text(text, reply_markup=build_help_main_keyboard())
         await callback_query.answer()
         return
