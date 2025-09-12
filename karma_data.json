@@ -13,7 +13,11 @@
             "wins": 0,
             "hits": 0,
             "reflected": 0,
-            "frozen": false
+            "frozen": false,
+            "xp": 0,
+            "energy": 5,
+            "coins": 6,
+            "last_money": "2025-09-12"
         }
     },
     "747439638": {

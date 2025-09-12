@@ -399,7 +399,7 @@ async def luck_command(client, message):
 last_kick_time = {}       # {chat_id: {user_id: datetime}}
 active_attacks = {}       # {chat_id: {target_id: {"attacker": user_id, "time": datetime}}}
 
-# --- Допоміжна функція: ініціалізація воїна ---
+# === Доповнюємо ensure_warrior ===
 def ensure_warrior(chat_id, user_id, username):
     if chat_id not in karma_data:
         karma_data[chat_id] = {}
@@ -408,16 +408,137 @@ def ensure_warrior(chat_id, user_id, username):
 
     user_data = karma_data[chat_id][user_id]
 
-    # Ініціалізація полів
-    user_data.setdefault("username", username)
-    user_data.setdefault("hp", 10)
+    # Основні поля
     user_data.setdefault("score", 0)
+    user_data.setdefault("xp", 0)
     user_data.setdefault("wins", 0)
     user_data.setdefault("hits", 0)
-    user_data.setdefault("reflected", 0)
+    user_data.setdefault("hp", 10)
+    user_data.setdefault("energy", 5)
     user_data.setdefault("frozen", False)
+    user_data.setdefault("username", username)
+
+    # Нові поля для економіки
+    user_data.setdefault("coins", 0)  # Монетки
+    user_data.setdefault("last_money", None)  # Дата останнього отримання монет
 
     return user_data
+
+
+# === /shop ===
+@app.on_message(filters.command("shop"))
+async def shop_command(client, message):
+    text = (
+        "🛒 **Магазин**\n\n"
+        "1. 🍬 Цукерка здоров’я – 5 монет (використовується через /heal)\n"
+        "2. ⚔️ Одноручний меч – 38 монет (додає +1 до сили удару)\n"
+        "3. 🗡 Дворучний меч – 38 монет (додає +2 до сили удару)\n\n"
+        "Купівля: `/buy <товар>`"
+    )
+    await message.reply_text(text)
+
+
+# === /buy ===
+@app.on_message(filters.command("buy"))
+async def buy_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    username = message.from_user.first_name
+    user_data = ensure_warrior(chat_id, user_id, username)
+
+    if len(message.command) < 2:
+        await message.reply_text("❌ Використання: /buy <товар>")
+        return
+
+    item = message.command[1].lower()
+
+    # Ініціалізуємо інвентар
+    if "inventory" not in user_data:
+        user_data["inventory"] = {"candies": 0, "weapon": None}
+
+    # === Покупка цукерки ===
+    if item in ["цукерка", "candy"]:
+        if user_data["coins"] < 5:
+            await message.reply_text("❌ У вас недостатньо монет для покупки цукерки!")
+            return
+        user_data["coins"] -= 5
+        user_data["inventory"]["candies"] += 1
+        text = f"🍬 {username} купив цукерку здоров’я! Тепер у вас {user_data['inventory']['candies']}."
+
+    # === Покупка меча ===
+    elif item in ["меч", "sword"]:
+        if user_data["coins"] < 38:
+            await message.reply_text("❌ У вас недостатньо монет для покупки меча!")
+            return
+
+        # Запропонуємо вибір: одноручний або дворучний
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚔️ Одноручний (+1)", callback_data=f"buy_sword_1_{user_id}")],
+            [InlineKeyboardButton("🗡 Дворучний (+2)", callback_data=f"buy_sword_2_{user_id}")]
+        ])
+        await message.reply_text("Виберіть тип меча:", reply_markup=keyboard)
+        return
+
+    else:
+        text = "❌ Такого товару немає."
+
+    save_json(karmadata_file, karma_data)
+    await message.reply_text(text)
+
+
+# === Обробка кнопок для покупки меча ===
+@app.on_callback_query(filters.regex(r"^buy_sword_(\d)_(\d+)$"))
+async def buy_sword_callback(client, callback_query):
+    power, buyer_id = callback_query.data.split("_")[2], callback_query.data.split("_")[3]
+
+    if str(callback_query.from_user.id) != buyer_id:
+        await callback_query.answer("Ця покупка не для вас!", show_alert=True)
+        return
+
+    chat_id = str(callback_query.message.chat.id)
+    user_data = ensure_warrior(chat_id, buyer_id, callback_query.from_user.first_name)
+
+    if user_data["coins"] < 38:
+        await callback_query.answer("Недостатньо монет!", show_alert=True)
+        return
+
+    user_data["coins"] -= 38
+    user_data["inventory"]["weapon"] = int(power)
+
+    save_json(karmadata_file, karma_data)
+    await callback_query.message.edit_text(
+        f"✅ Ви купили {'⚔️ Одноручний меч (+1)' if power=='1' else '🗡 Дворучний меч (+2)'}!"
+    )
+
+
+
+
+
+
+# === /money ===
+@app.on_message(filters.command("money"))
+async def money_command(client, message):
+    chat_id = str(message.chat.id)
+    user_id = str(message.from_user.id)
+    username = message.from_user.first_name
+
+    user_data = ensure_warrior(chat_id, user_id, username)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # Перевіряємо, чи сьогодні вже отримували
+    if user_data["last_money"] == today:
+        await message.reply_text("❌ Ви вже отримали свої монетки сьогодні. Спробуйте завтра!")
+        return
+
+    # Генеруємо випадкову кількість монет
+    coins = random.randint(0, 15)
+    user_data["coins"] += coins
+    user_data["last_money"] = today
+
+    save_json(karmadata_file, karma_data)
+
+    await message.reply_text(f"💰 {username} отримав {coins} монет! Тепер у вас {user_data['coins']} монет.")
 
 # --- Зберегти дані ---
 def save_data():
