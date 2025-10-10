@@ -1,0 +1,27 @@
+# Git files
+.git
+.gitignore
+
+# Environment files (will be handled by docker-compose)
+B.env
+
+# Session files
+*.session
+*.session-journal
+
+# Data files (will be mounted as volumes)
+karma_data.json
+character_data.json
+
+# Documentation
+README.md
+QUICK_START.md
+env.example
+
+# IDE files
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
