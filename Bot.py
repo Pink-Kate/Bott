@@ -25,9 +25,28 @@ logger = logging.getLogger(__name__)
 
 
 # --- Налаштування ---
-api_id = int(os.getenv('API_ID'))
+# Перевірка наявності обов'язкових змінних середовища
+api_id = os.getenv('API_ID')
 api_hash = os.getenv('API_HASH')
 bot_token = os.getenv('BOT_TOKEN')
+
+if not api_id or not api_hash or not bot_token:
+    print("❌ ПОМИЛКА: Не знайдено обов'язкові змінні середовища!")
+    print("📝 Створіть файл .env з наступними змінними:")
+    print("API_ID=your_api_id")
+    print("API_HASH=your_api_hash")
+    print("BOT_TOKEN=your_bot_token")
+    print("CHANNEL_ID=@your_channel")
+    print("ADMIN_IDS=123456789,987654321")
+    print("ADMIN_USERNAMES=admin1,admin2")
+    exit(1)
+
+try:
+    api_id = int(api_id)
+except ValueError:
+    print("❌ ПОМИЛКА: API_ID має бути числом!")
+    exit(1)
+
 bot_name = 'Кринжик'
 channel_id = os.getenv('CHANNEL_ID', '@your_channel')
 admin_ids = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]  # Telegram ID адмінів
