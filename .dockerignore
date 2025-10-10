@@ -1,0 +1,30 @@
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+QUICK_START.md
+
+# Session files
+*.session
+*.session-journal
+
+# Data files (will be mounted as volumes)
+karma_data.json
+character_data.json
+funpoll_cache.json
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
