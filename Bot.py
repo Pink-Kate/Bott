@@ -366,10 +366,10 @@ async def random_command(client, message):
     amount = random.randint(1, 3)
 
     if effect == "+hp":
-        user_data["hp"] += amount
+        user_data["hp_current"] = min(user_data["hp_max"], user_data["hp_current"] + amount)
         text = f"🎲 Щастя! {username} отримав {amount} HP"
     elif effect == "-hp":
-        user_data["hp"] -= amount
+        user_data["hp_current"] = max(0, user_data["hp_current"] - amount)
         text = f"🎲 Невдача! {username} втратив {amount} HP"
     elif effect == "+energy":
         user_data["energy"] += amount
@@ -496,6 +496,7 @@ def ensure_warrior(chat_id, user_id, username):
     user_data.setdefault("energy", 5)
     user_data.setdefault("frozen", False)
     user_data.setdefault("last_money", None)
+    user_data.setdefault("reflected", 0)
 
     return user_data
 
