@@ -17,29 +17,12 @@ from pyrogram.enums import PollType
 app = Client("my_bot")
 
 # Завантажуємо змінні середовища
-print("🔍 Поточна директорія:", os.getcwd())
-print("📂 Файли в директорії:", [f for f in os.listdir('.') if f.endswith('.env')])
-
-# Спочатку пробуємо B.env (ваш файл), потім .env (стандартний)
 if os.path.exists('B.env'):
-    print("📁 Файл B.env знайдено, завантажуємо...")
-    result = load_dotenv('B.env')
-    print(f"📁 Результат завантаження B.env: {result}")
-    
-    # Перевіримо що в файлі
-    try:
-        with open('B.env', 'r', encoding='utf-8') as f:
-            content = f.read()
-            print("📄 Вміст B.env (перші 100 символів):", content[:100])
-    except Exception as e:
-        print(f"❌ Помилка читання B.env: {e}")
-        
+    load_dotenv('B.env')
 elif os.path.exists('.env'):
     load_dotenv('.env')
-    print("📁 Завантажено налаштування з .env")
 else:
-    print("⚠️ Не знайдено .env файлів, використовуємо системні змінні")
-    load_dotenv()  # Спробувати системні змінні
+    load_dotenv()
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO)
@@ -52,29 +35,15 @@ api_id = os.getenv('API_ID')
 api_hash = os.getenv('API_HASH')
 bot_token = os.getenv('BOT_TOKEN')
 
-print("🔑 Перевірка змінних:")
-print(f"API_ID: {'✅ Знайдено' if api_id else '❌ Не знайдено'}")
-print(f"API_HASH: {'✅ Знайдено' if api_hash else '❌ Не знайдено'}")
-print(f"BOT_TOKEN: {'✅ Знайдено' if bot_token else '❌ Не знайдено'}")
 
 if not api_id or not api_hash or not bot_token:
-    print("❌ ПОМИЛКА: Не знайдено обов'язкові змінні середовища!")
-    print("\n🔧 СПОСОБИ ВИПРАВЛЕННЯ:")
-    print("\n1️⃣ Створіть файл B.env або .env:")
-    print("API_ID=your_api_id")
-    print("API_HASH=your_api_hash")
-    print("BOT_TOKEN=your_bot_token")
-    print("CHANNEL_ID=@your_channel")
-    print("ADMIN_IDS=123456789,987654321")
-    print("ADMIN_USERNAMES=admin1,admin2")
-    print("\n2️⃣ Або встановіть системні змінні середовища")
-    print("\n📖 Детальні інструкції: дивіться QUICK_START.md")
+    print("❌ Не знайдено змінні середовища. Створіть .env файл або встановіть змінні в Railway/Heroku.")
     exit(1)
 
 try:
     api_id = int(api_id)
 except ValueError:
-    print("❌ ПОМИЛКА: API_ID має бути числом!")
+    print("❌ API_ID має бути числом!")
     exit(1)
 
 bot_name = 'Кринжик'
