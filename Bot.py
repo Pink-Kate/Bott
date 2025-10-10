@@ -17,14 +17,28 @@ from pyrogram.enums import PollType
 app = Client("my_bot")
 
 # Завантажуємо змінні середовища
+print("🔍 Поточна директорія:", os.getcwd())
+print("📂 Файли в директорії:", [f for f in os.listdir('.') if f.endswith('.env')])
+
 # Спочатку пробуємо B.env (ваш файл), потім .env (стандартний)
 if os.path.exists('B.env'):
-    load_dotenv('B.env')
-    print("📁 Завантажено налаштування з B.env")
+    print("📁 Файл B.env знайдено, завантажуємо...")
+    result = load_dotenv('B.env')
+    print(f"📁 Результат завантаження B.env: {result}")
+    
+    # Перевіримо що в файлі
+    try:
+        with open('B.env', 'r', encoding='utf-8') as f:
+            content = f.read()
+            print("📄 Вміст B.env (перші 100 символів):", content[:100])
+    except Exception as e:
+        print(f"❌ Помилка читання B.env: {e}")
+        
 elif os.path.exists('.env'):
     load_dotenv('.env')
     print("📁 Завантажено налаштування з .env")
 else:
+    print("⚠️ Не знайдено .env файлів, використовуємо системні змінні")
     load_dotenv()  # Спробувати системні змінні
 
 # --- Логування ---
@@ -37,6 +51,11 @@ logger = logging.getLogger(__name__)
 api_id = os.getenv('API_ID')
 api_hash = os.getenv('API_HASH')
 bot_token = os.getenv('BOT_TOKEN')
+
+print("🔑 Перевірка змінних:")
+print(f"API_ID: {'✅ Знайдено' if api_id else '❌ Не знайдено'}")
+print(f"API_HASH: {'✅ Знайдено' if api_hash else '❌ Не знайдено'}")
+print(f"BOT_TOKEN: {'✅ Знайдено' if bot_token else '❌ Не знайдено'}")
 
 if not api_id or not api_hash or not bot_token:
     print("❌ ПОМИЛКА: Не знайдено обов'язкові змінні середовища!")
