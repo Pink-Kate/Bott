@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from pyrogram.enums import PollType
-from pyrogram.storage import MemoryStorage
 
 
 
@@ -145,8 +144,7 @@ app = Client(
     name=session_name,
     api_id=api_id,
     api_hash=api_hash,
-    bot_token=bot_token,
-    storage=MemoryStorage(session_name)  # Використовуємо пам'ять замість файлів
+    bot_token=bot_token
 )
 
 
