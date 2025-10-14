@@ -485,16 +485,28 @@ def ensure_warrior(chat_id, user_id, username):
     user_data.setdefault("coins", 0)  # Для сумісності
     
     # Інвентар
-    user_data.setdefault("inventory", {"candies": 0, "weapon": None, "armor": None})
+    user_data.setdefault("inventory", {
+        "weapon": None,
+        "armor": None, 
+        "potions": {"small_heal": 0, "large_heal": 0},
+        "tactical": {"bomb": 0, "amulet_reflex": 0},
+        "premium": {"pvp_immunity": 0}
+    })
     
     # Щоденні активності
     user_data.setdefault("last_daily", None)
+    user_data.setdefault("daily_streak", 0)
+    user_data.setdefault("last_pvp_date", None)
     
     # Кулдауни
     user_data.setdefault("cooldowns", {"kick": 0, "mirror": 0, "heal": 0})
     
     # Статус
     user_data.setdefault("status", "normal")  # normal, stunned, banned_from_pvp
+    
+    # Mirror стан
+    user_data.setdefault("mirror_on", False)
+    user_data.setdefault("mirror_until", 0)
     
     # Статистика (для сумісності)
     user_data.setdefault("score", 0)
@@ -504,6 +516,11 @@ def ensure_warrior(chat_id, user_id, username):
     user_data.setdefault("frozen", False)
     user_data.setdefault("last_money", None)
     user_data.setdefault("reflected", 0)
+    
+    # Глобальна статистика
+    user_data.setdefault("total_damage_dealt", 0)
+    user_data.setdefault("total_battles", 0)
+    user_data.setdefault("total_losses", 0)
 
     return user_data
 
@@ -569,13 +586,30 @@ def apply_death(user_data):
 # === /shop ===
 @app.on_message(filters.command("shop"))
 async def shop_command(client, message):
-    text = (
-        "🛒 **Магазин**\n\n"
-        "1. 🍬 Цукерка здоров’я – 5 монет (використовується через /heal)\n"
-        "2. ⚔️ Одноручний меч – 38 монет (додає +1 до сили удару)\n"
-        "3. 🗡 Дворучний меч – 38 монет (додає +2 до сили удару)\n\n"
-        "Купівля: `/buy <товар>`"
-    )
+    text = """🛒 **Магазин**
+
+**⚔️ Зброя:**
+• Меч +1 — Price: 300 gold — ATK +8 — (рідкість: common)
+• Меч +2 — Price: 600 gold — ATK +15 — (рідкість: rare)
+• Меч +3 — Price: 1200 gold — ATK +25 — (рідкість: epic)
+
+**🛡️ Броня:**
+• Щит +1 — Price: 250 gold — DEF +6 — (рідкість: common)
+• Щит +2 — Price: 500 gold — DEF +12 — (рідкість: rare)
+• Щит +3 — Price: 1000 gold — DEF +20 — (рідкість: epic)
+
+**🧪 Зілля:**
+• Зілля лікування (Small) — Price: 50 gold — Відновити 30 HP
+• Зілля лікування (Large) — Price: 120 gold — Відновити 80 HP
+
+**🎯 Тактичні предмети:**
+• Amulet of Reflex — Price: 700 gold — +10% mirror success chance
+• Bomb (Consumable) — Price: 200 gold — Викликає одноразову атаку 70 шкоди
+
+**💎 Преміальні:**
+• Token PvP Immunity (1h) — Price: 1000 gold — Заборона на атаку цього гравця протягом 1h
+
+**Купівля:** `/buy <item>`"""
     await message.reply_text(text)
 
 
@@ -588,43 +622,93 @@ async def buy_command(client, message):
     user_data = ensure_warrior(chat_id, user_id, username)
 
     if len(message.command) < 2:
-        await message.reply_text("❌ Використання: /buy <товар>")
+        await message.reply_text("❌ Використання: /buy <item>")
         return
 
-    item = message.command[1].lower()
-
-    # Ініціалізуємо інвентар
-    if "inventory" not in user_data:
-        user_data["inventory"] = {"candies": 0, "weapon": None}
-
-    # === Покупка цукерки ===
-    if item in ["цукерка", "candy"]:
-        if user_data["coins"] < 5:
-            await message.reply_text("❌ У вас недостатньо монет для покупки цукерки!")
-            return
-        user_data["coins"] -= 5
-        user_data["inventory"]["candies"] += 1
-        text = f"🍬 {username} купив цукерку здоров’я! Тепер у вас {user_data['inventory']['candies']}."
-
-    # === Покупка меча ===
-    elif item in ["меч", "sword"]:
-        if user_data["coins"] < 38:
-            await message.reply_text("❌ У вас недостатньо монет для покупки меча!")
-            return
-
-        # Запропонуємо вибір: одноручний або дворучний
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("⚔️ Одноручний (+1)", callback_data=f"buy_sword_1_{user_id}")],
-            [InlineKeyboardButton("🗡 Дворучний (+2)", callback_data=f"buy_sword_2_{user_id}")]
-        ])
-        await message.reply_text("Виберіть тип меча:", reply_markup=keyboard)
+    item_name = " ".join(message.command[1:]).lower()
+    
+    # Словник товарів з цінами та ефектами
+    shop_items = {
+        # Зброя
+        "меч +1": {"price": 300, "type": "weapon", "atk": 8, "rarity": "common"},
+        "меч +2": {"price": 600, "type": "weapon", "atk": 15, "rarity": "rare"},
+        "меч +3": {"price": 1200, "type": "weapon", "atk": 25, "rarity": "epic"},
+        
+        # Броня
+        "щит +1": {"price": 250, "type": "armor", "def": 6, "rarity": "common"},
+        "щит +2": {"price": 500, "type": "armor", "def": 12, "rarity": "rare"},
+        "щит +3": {"price": 1000, "type": "armor", "def": 20, "rarity": "epic"},
+        
+        # Зілля
+        "зілля лікування (small)": {"price": 50, "type": "potion", "heal": 30},
+        "зілля лікування (large)": {"price": 120, "type": "potion", "heal": 80},
+        
+        # Тактичні предмети
+        "amulet of reflex": {"price": 700, "type": "tactical", "mirror_bonus": 10},
+        "bomb": {"price": 200, "type": "tactical", "damage": 70},
+        
+        # Преміальні
+        "token pvp immunity": {"price": 1000, "type": "premium", "immunity_hours": 1}
+    }
+    
+    # Знаходимо товар
+    item_key = None
+    for key in shop_items.keys():
+        if key in item_name:
+            item_key = key
+            break
+    
+    if not item_key:
+        await message.reply_text("❌ Такого товару немає в магазині!")
         return
-
-    else:
-        text = "❌ Такого товару немає."
-
+    
+    item = shop_items[item_key]
+    
+    # Перевірка грошей
+    if user_data["gold"] < item["price"]:
+        await message.reply_text(f"❌ Недостатньо золота! Потрібно: {item['price']}, у вас: {user_data['gold']}")
+        return
+    
+    # Покупка
+    user_data["gold"] -= item["price"]
+    old_gold = user_data["gold"] + item["price"]
+    
+    result_text = f"✅ Куплено: {item_key.title()}\n"
+    
+    # Застосування ефектів
+    if item["type"] == "weapon":
+        user_data["inventory"]["weapon"] = item["atk"]
+        user_data["atk"] += item["atk"]
+        result_text += f"ATK збільшено на {item['atk']}.\n"
+        
+    elif item["type"] == "armor":
+        user_data["inventory"]["armor"] = item["def"]
+        user_data["def"] += item["def"]
+        result_text += f"DEF збільшено на {item['def']}.\n"
+        
+    elif item["type"] == "potion":
+        if "small" in item_key:
+            user_data["inventory"]["potions"]["small_heal"] += 1
+        else:
+            user_data["inventory"]["potions"]["large_heal"] += 1
+        result_text += f"Зілля додано в інвентар.\n"
+        
+    elif item["type"] == "tactical":
+        if "amulet" in item_key:
+            user_data["inventory"]["tactical"]["amulet_reflex"] += 1
+            result_text += f"Amulet додано в інвентар.\n"
+        elif "bomb" in item_key:
+            user_data["inventory"]["tactical"]["bomb"] += 1
+            result_text += f"Bomb додано в інвентар.\n"
+            
+    elif item["type"] == "premium":
+        user_data["inventory"]["premium"]["pvp_immunity"] += 1
+        result_text += f"Token додано в інвентар.\n"
+    
+    result_text += f"Gold: {old_gold} → -{item['price']} (залишок: {user_data['gold']})"
+    
     save_json(karmadata_file, karma_data)
-    await message.reply_text(text)
+    await message.reply_text(result_text)
 
 
 # === Обробка кнопок для покупки меча ===
@@ -665,47 +749,62 @@ async def money_command(client, message):
 
     user_data = ensure_warrior(chat_id, user_id, username)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Перевірка 24-годинного кулдауну
+    if user_data.get("last_daily"):
+        last_daily = datetime.fromisoformat(user_data["last_daily"])
+        time_since_last = datetime.now() - last_daily
+        
+        if time_since_last.total_seconds() < 24 * 3600:  # 24 години
+            hours_left = 24 - int(time_since_last.total_seconds() / 3600)
+            minutes_left = int((time_since_last.total_seconds() % 3600) / 60)
+            await message.reply_text(f"❌ Щоденна винагорода доступна через {hours_left} год {minutes_left} хв.")
+            return
 
-    # Перевіряємо, чи сьогодні вже отримували
-    if user_data.get("last_daily") == today:
-        await message.reply_text("❌ Ви вже отримали щоденну винагороду сьогодні. Спробуйте завтра!")
-        return
-
-    # Генеруємо щоденну винагороду
-    gold_reward = random.randint(50, 150)
-    xp_reward = random.randint(5, 15)
+    # Базова нагорода
+    base_gold = 100
+    total_gold = base_gold
     
-    user_data["gold"] += gold_reward
-    user_data["xp"] += xp_reward
-    user_data["coins"] += random.randint(5, 15)  # Для сумісності
+    # Розрахунок стріку
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    if user_data.get("last_daily") == yesterday:
+        # Продовження стріку
+        user_data["daily_streak"] += 1
+    elif user_data.get("last_daily") != today:
+        # Стрік перервано
+        user_data["daily_streak"] = 1
+    
+    # Бонус за стрік (максимум +100%)
+    streak_bonus_percent = min(100, user_data["daily_streak"] * 10)
+    streak_bonus = int(base_gold * streak_bonus_percent / 100)
+    total_gold += streak_bonus
+    
+    # Бонус за PvP участь вчора
+    pvp_bonus = 0
+    if user_data.get("last_pvp_date") == yesterday:
+        pvp_bonus = 20
+        total_gold += pvp_bonus
+    
+    # Оновлення даних
+    old_gold = user_data["gold"]
+    user_data["gold"] += total_gold
     user_data["last_daily"] = today
-
-    # Перевірка підвищення рівня
-    level_up_text = ""
-    xp_needed = user_data["lvl"] * 100  # 100 XP на рівень
-    if user_data["xp"] >= xp_needed:
-        user_data["lvl"] += 1
-        user_data["xp"] -= xp_needed
-        
-        # Бонуси за рівень
-        user_data["hp_max"] += 20
-        user_data["hp_current"] = user_data["hp_max"]  # Повне відновлення при підвищенні
-        user_data["atk"] += 2
-        user_data["def"] += 1
-        user_data["agi"] += 1
-        
-        level_up_text = f"\n🎉 ПІДВИЩЕННЯ РІВНЯ! Тепер ви {user_data['lvl']} рівня!"
-        level_up_text += f"\n📈 +20 HP, +2 ATK, +1 DEF, +1 AGI"
+    
+    # Формування повідомлення
+    result_text = f"💰 Щоденна винагорода: +{base_gold} gold\n"
+    
+    if user_data["daily_streak"] > 1:
+        result_text += f"Стрік: {user_data['daily_streak']} дні → +{streak_bonus_percent}% бонус → отримано {total_gold} gold\n"
+    else:
+        result_text += f"Стрік: 1 день → +0% бонус → отримано {total_gold} gold\n"
+    
+    if pvp_bonus > 0:
+        result_text += f"PvP бонус: +{pvp_bonus} gold\n"
+    
+    result_text += f"Новий баланс: {user_data['gold']} gold"
 
     save_json(karmadata_file, karma_data)
-
-    result_text = f"💰 {username} отримав щоденну винагороду!\n"
-    result_text += f"🪙 +{gold_reward} золота\n"
-    result_text += f"✨ +{xp_reward} XP\n"
-    result_text += f"💰 Всього золота: {user_data['gold']}"
-    result_text += level_up_text
-
     await message.reply_text(result_text)
 
 # --- Зберегти дані ---
@@ -736,25 +835,29 @@ async def heal_command(client, message):
     # Встановлюємо кулдаун
     set_cooldown(user_data, "heal")
 
+    # Формування імені для відображення
+    display_name = f"@{message.from_user.username}" if message.from_user.username else username
+
     # Розрахунок лікування
     base_heal = int(user_data["hp_max"] * 0.20)  # 20% від максимального HP
-    heal_item_bonus = 0
+    heal_amount = base_heal
     
-    # Використання цукерки якщо є
-    if user_data["inventory"]["candies"] > 0:
-        user_data["inventory"]["candies"] -= 1
-        heal_item_bonus = random.randint(10, 20)
+    # Використання зілля якщо є
+    potions = user_data["inventory"]["potions"]
+    if potions["large_heal"] > 0:
+        user_data["inventory"]["potions"]["large_heal"] -= 1
+        heal_amount = 80  # Large heal potion
+    elif potions["small_heal"] > 0:
+        user_data["inventory"]["potions"]["small_heal"] -= 1
+        heal_amount = 30  # Small heal potion
         
-    total_heal = base_heal + heal_item_bonus
     old_hp = user_data["hp_current"]
-    user_data["hp_current"] = min(user_data["hp_max"], user_data["hp_current"] + total_heal)
+    user_data["hp_current"] = min(user_data["hp_max"], user_data["hp_current"] + heal_amount)
     actual_heal = user_data["hp_current"] - old_hp
 
-    result_text = f"💖 {username} відновив {actual_heal} HP!"
-    if heal_item_bonus > 0:
-        result_text += f"\n🍬 Цукерка додала +{heal_item_bonus} лікування!"
-    
-    result_text += f"\n❤️ HP: {user_data['hp_current']}/{user_data['hp_max']}"
+    result_text = f"💚 {display_name} використовує /heal\n"
+    result_text += f"Відновлено {actual_heal} HP (HP {user_data['hp_current']}/{user_data['hp_max']})\n"
+    result_text += f"Кулдаун /heal: 60s"
 
     save_json(karmadata_file, karma_data)
     await message.reply_text(result_text)
@@ -766,13 +869,43 @@ async def heal_command(client, message):
 
 @app.on_message(filters.command("kick"))
 async def kick_command(client, message):
-    if not message.reply_to_message:
-        await message.reply_text("❌ Використовуйте /kick у відповідь на повідомлення суперника!")
-        return
-
     chat_id = str(message.chat.id)
     attacker_id = str(message.from_user.id)
-    target_id = str(message.reply_to_message.from_user.id)
+    
+    # Парсинг цілі атаки
+    target_user = None
+    target_id = None
+    target_name = None
+    
+    # Перевіряємо чи є reply на повідомлення
+    if message.reply_to_message:
+        target_id = str(message.reply_to_message.from_user.id)
+        target_name = message.reply_to_message.from_user.first_name
+    # Перевіряємо чи є @username в команді
+    elif len(message.command) > 1:
+        username_arg = message.command[1]
+        if username_arg.startswith('@'):
+            username_arg = username_arg[1:]  # Видаляємо @
+        
+        # Шукаємо користувача в чаті
+        try:
+            # Отримуємо учасників чату
+            async for member in client.get_chat_members(chat_id):
+                if (member.user.username and member.user.username.lower() == username_arg.lower()) or \
+                   (member.user.first_name and member.user.first_name.lower() == username_arg.lower()):
+                    target_id = str(member.user.id)
+                    target_name = member.user.first_name
+                    break
+        except Exception as e:
+            await message.reply_text(f"❌ Помилка пошуку користувача: {e}")
+            return
+            
+        if not target_id:
+            await message.reply_text(f"❌ Користувач @{username_arg} не знайдений в чаті!")
+            return
+    else:
+        await message.reply_text("❌ Використання: /kick @username або /kick у відповідь на повідомлення!")
+        return
     
     if attacker_id == target_id:
         await message.reply_text("❌ Не можна атакувати самого себе!")
@@ -780,7 +913,7 @@ async def kick_command(client, message):
 
     # Створюємо записи воїнів
     attacker_data = ensure_warrior(chat_id, attacker_id, message.from_user.first_name)
-    target_data = ensure_warrior(chat_id, target_id, message.reply_to_message.from_user.first_name)
+    target_data = ensure_warrior(chat_id, target_id, target_name)
 
     # Перевірка статусу атакуючого
     if attacker_data["status"] == "stunned":
@@ -791,7 +924,20 @@ async def kick_command(client, message):
         else:
             attacker_data["status"] = "normal"
 
-    # Перевірка кулдауну
+    # Перевірка статусу цілі
+    if target_data["status"] == "stunned":
+        if time.time() < target_data.get("stun_until", 0):
+            await message.reply_text(f"❌ {target_name} оглушений і не може битися!")
+            return
+        else:
+            target_data["status"] = "normal"
+    
+    # Перевірка чи ціль мертва
+    if target_data["hp_current"] <= 0:
+        await message.reply_text(f"❌ {target_name} вже мертвий!")
+        return
+
+    # Перевірка кулдауну атакуючого
     can_attack, remaining = check_cooldown(attacker_data, "kick")
     if not can_attack:
         await message.reply_text(f"⏳ Кулдаун атаки! Залишилось {int(remaining)} секунд.")
@@ -800,12 +946,14 @@ async def kick_command(client, message):
     # Встановлюємо кулдаун
     set_cooldown(attacker_data, "kick")
 
+    # Формування імен для відображення
+    attacker_name = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
+    target_display_name = f"@{target_name}" if target_name else target_name
+
     # Перевірка ухилення
     if check_dodge(target_data):
         save_json(karmadata_file, karma_data)
-        await message.reply_text(
-            f"💨 {message.reply_to_message.from_user.first_name} ухилився від атаки {message.from_user.first_name}!"
-        )
+        await message.reply_text(f"💨 {target_display_name} ухилився від атаки {attacker_name}!")
         return
 
     # Розрахунок шкоди
@@ -815,32 +963,82 @@ async def kick_command(client, message):
 
     damage, is_crit = calculate_damage(attacker_data, target_data, weapon_modifier)
     
-    # Застосування шкоди
+    # Перевірка активного mirror стану
+    is_reflected = False
+    reflected_damage = 0
+    
+    if target_data.get("mirror_on", False) and time.time() < target_data.get("mirror_until", 0):
+        # Mirror активний - перевіряємо шанс відбиття
+        mirror_chance = calculate_mirror_success(target_data)
+        is_reflected = random.random() < mirror_chance
+        
+        if is_reflected:
+            # Успішне відбиття - знімаємо mirror стан
+            target_data["mirror_on"] = False
+            target_data["mirror_until"] = 0
+            
+            # Розрахунок відбитої шкоди (60% від оригінальної)
+            reflected_damage = int(damage * 0.6)
+            attacker_data["hp_current"] = max(0, attacker_data["hp_current"] - reflected_damage)
+            
+            # Статистика
+            target_data.setdefault("reflected", 0)
+            target_data["reflected"] += 1
+            target_data["xp"] += 5  # Бонус XP за відбиття
+    
+    # Застосування шкоди до цілі
     target_data["hp_current"] = max(0, target_data["hp_current"] - damage)
     
     # Формування повідомлення
-    crit_text = " 💥 КРИТИЧНИЙ УДАР!" if is_crit else ""
-    result_text = f"⚔️ {message.from_user.first_name} атакує {message.reply_to_message.from_user.first_name}!\n"
-    result_text += f"💔 Завдано {damage} шкоди{crit_text}\n"
-    result_text += f"❤️ HP цілі: {target_data['hp_current']}/{target_data['hp_max']}"
+    crit_text = "Критичний! 🩸" if is_crit else ""
+    result_text = f"⚔️ {attacker_name} атакує {target_display_name}!\n"
+    result_text += f"{crit_text} Шкода {damage} → {target_display_name} (HP {target_data['hp_current']}/{target_data['hp_max']})"
+    
+    # Обробка mirror reflection
+    if is_reflected:
+        result_text += f"\n{target_display_name} відбила 60% і повернула {reflected_damage} шкоди."
+    
+    # Розрахунок нагород
+    xp_reward = min(30, max(5, damage // 2))  # 5-30 XP залежно від шкоди
+    gold_reward = random.randint(5, 15)
+    
+    attacker_data["xp"] += xp_reward
+    attacker_data["gold"] += gold_reward
+    
+    # Оновлення глобальної статистики
+    attacker_data["total_damage_dealt"] += damage
+    attacker_data["total_battles"] += 1
+    
+    # Оновлення PvP участі для щоденної винагороди
+    today = datetime.now().strftime("%Y-%m-%d")
+    attacker_data["last_pvp_date"] = today
+    target_data["last_pvp_date"] = today
+    
+    result_text += f"\nНагорода: +{xp_reward} XP, {gold_reward} gold"
 
-    # Перевірка смерті
+    # Перевірка смерті цілі
     if target_data["hp_current"] <= 0:
         gold_loss = apply_death(target_data)
         attacker_data["wins"] += 1
-        attacker_data["xp"] += 10
+        attacker_data["xp"] += 20  # Бонус XP за перемогу
         
-        result_text += f"\n💀 {message.reply_to_message.from_user.first_name} побитий!"
-        result_text += f"\n💰 Втрачено {gold_loss} золота"
-        result_text += f"\n🏆 {message.from_user.first_name} отримує 10 XP!"
+        # Оновлення статистики поразки для цілі
+        target_data["total_losses"] += 1
+        
+        result_text += f"\n💀 {target_display_name} побитий!"
+        result_text += f"\n💰 {target_display_name} втратив {gold_loss} золота"
+        result_text += f"\n🏆 Бонус за перемогу: +20 XP!"
 
-    # Реєструємо атаку для можливого mirror
-    active_attacks.setdefault(chat_id, {})
-    active_attacks[chat_id][target_id] = {
-        "attacker": attacker_id, 
-        "damage": damage,
-        "time": time.time()
-    }
+    # Реєструємо атаку для можливого mirror (якщо не було відбиття)
+    if not is_reflected:
+        active_attacks.setdefault(chat_id, {})
+        active_attacks[chat_id][target_id] = {
+            "attacker": attacker_id, 
+            "damage": damage,
+            "time": time.time()
+        }
+
+    result_text += f"\nКулдаун /kick: 30s"
 
     save_json(karmadata_file, karma_data)
     await message.reply_text(result_text)
@@ -861,55 +1059,30 @@ async def mirror_command(client, message):
         await message.reply_text(f"⏳ Кулдаун mirror! Залишилось {int(remaining)} секунд.")
         return
 
-    # Перевірка наявності атаки
-    if chat_id not in active_attacks or user_id not in active_attacks[chat_id]:
-        await message.reply_text("❌ Немає атаки для відбиття!")
-        return
+    # Перевірка чи вже активний mirror
+    if user_data.get("mirror_on", False):
+        if time.time() < user_data.get("mirror_until", 0):
+            remaining_mirror = int(user_data["mirror_until"] - time.time())
+            await message.reply_text(f"🛡️ Mirror вже активний! Залишилось {remaining_mirror} секунд.")
+            return
+        else:
+            # Mirror закінчився, очищаємо
+            user_data["mirror_on"] = False
+            user_data["mirror_until"] = 0
 
-    attack_info = active_attacks[chat_id][user_id]
-    attacker_id = attack_info["attacker"]
-    original_damage = attack_info["damage"]
-
-    # Перевірка часу (атаку можна відбити протягом 10 секунд)
-    if time.time() - attack_info["time"] > 10:
-        del active_attacks[chat_id][user_id]
-        await message.reply_text("❌ Занадто пізно для відбиття атаки!")
-        return
-
+    # Активація mirror стану
+    mirror_duration = 6  # 6 секунд
+    user_data["mirror_on"] = True
+    user_data["mirror_until"] = time.time() + mirror_duration
+    
     # Встановлюємо кулдаун
     set_cooldown(user_data, "mirror")
 
-    # Перевірка успішності відбиття
-    mirror_chance = calculate_mirror_success(user_data)
-    if random.random() > mirror_chance:
-        del active_attacks[chat_id][user_id]
-        await message.reply_text(f"💔 {message.from_user.first_name} не зміг відбити атаку!")
-        return
+    # Формування імені для відображення
+    username = message.from_user.username
+    display_name = f"@{username}" if username else message.from_user.first_name
 
-    # Успішне відбиття
-    attacker_data = ensure_warrior(chat_id, attacker_id, "Невідомий")
-    
-    # Відбита шкода (50-100% від оригінальної)
-    reflected_damage = random.randint(int(original_damage * 0.5), original_damage)
-    attacker_data["hp_current"] = max(0, attacker_data["hp_current"] - reflected_damage)
-    
-    # Статистика
-    user_data.setdefault("reflected", 0)
-    user_data["reflected"] += 1
-    user_data["xp"] += 5  # Бонус XP за відбиття
-
-    result_text = f"🪞 {message.from_user.first_name} відбив атаку!\n"
-    result_text += f"💔 Відбито {reflected_damage} шкоди назад!\n"
-    result_text += f"✨ +5 XP за майстерне відбиття!"
-
-    # Перевірка смерті атакуючого
-    if attacker_data["hp_current"] <= 0:
-        gold_loss = apply_death(attacker_data)
-        result_text += f"\n💀 Атакуючий побитий власною атакою!"
-        result_text += f"\n💰 Втрачено {gold_loss} золота"
-
-    # Видаляємо атаку після відбиття
-    del active_attacks[chat_id][user_id]
+    result_text = f"🛡️ {display_name} активувала /mirror ({mirror_duration}s)!"
 
     save_json(karmadata_file, karma_data)
     await message.reply_text(result_text)
@@ -921,51 +1094,147 @@ async def warrior_command(client, message):
     user_id = str(message.from_user.id)
     user_data = ensure_warrior(chat_id, user_id, message.from_user.first_name)
 
-    # Перевірка статусу
-    status_text = ""
-    if user_data["status"] == "stunned":
-        if time.time() < user_data.get("stun_until", 0):
-            remaining = int(user_data["stun_until"] - time.time())
-            status_text = f"\n😵 Статус: Оглушений ({remaining}с)"
-        else:
-            user_data["status"] = "normal"
+    # Формування імені користувача
+    username = message.from_user.username
+    display_name = f"@{username}" if username else message.from_user.first_name
 
-    # Формування інформації про воїна
-    hp_bar = "█" * int(user_data["hp_current"] / user_data["hp_max"] * 10)
-    hp_bar += "░" * (10 - len(hp_bar))
+    # Розрахунок XP для наступного рівня
+    xp_needed = user_data["lvl"] * 100
+    xp_progress = f"{user_data['xp']}/{xp_needed}"
+
+    # Формування інвентаря
+    inventory_items = []
     
-    weapon_text = ""
+    # Зброя
     if user_data["inventory"]["weapon"]:
-        weapon_icons = {1: "⚔️", 2: "🗡️"}
-        weapon_text = f"\n🗡️ Зброя: {weapon_icons.get(user_data['inventory']['weapon'], '⚔️')} Рівень {user_data['inventory']['weapon']}"
+        inventory_items.append(f"⚔️ Меч +{user_data['inventory']['weapon']}")
+    
+    # Броня
+    if user_data["inventory"]["armor"]:
+        inventory_items.append(f"🛡️ Щит +{user_data['inventory']['armor']}")
+    
+    # Зілля
+    potions = user_data["inventory"]["potions"]
+    if potions["small_heal"] > 0:
+        inventory_items.append(f"🧪 Small Heal (x{potions['small_heal']})")
+    if potions["large_heal"] > 0:
+        inventory_items.append(f"🧪 Large Heal (x{potions['large_heal']})")
+    
+    # Тактичні предмети
+    tactical = user_data["inventory"]["tactical"]
+    if tactical["amulet_reflex"] > 0:
+        inventory_items.append(f"🎯 Amulet (x{tactical['amulet_reflex']})")
+    if tactical["bomb"] > 0:
+        inventory_items.append(f"💣 Bomb (x{tactical['bomb']})")
+    
+    # Преміальні
+    premium = user_data["inventory"]["premium"]
+    if premium["pvp_immunity"] > 0:
+        inventory_items.append(f"💎 Immunity (x{premium['pvp_immunity']})")
+    
+    inventory_text = ", ".join(inventory_items) if inventory_items else "Порожній"
 
-    text = f"""⚔️ **Воїн {user_data['name']}**
+    # Формування кулдаунів
+    cooldown_times = {"kick": 30, "mirror": 15, "heal": 60}
+    cooldown_texts = []
+    
+    for action, cooldown_duration in cooldown_times.items():
+        last_use = user_data["cooldowns"].get(action, 0)
+        if last_use == 0:
+            cooldown_texts.append(f"/{action} ready")
+        else:
+            remaining = cooldown_duration - (time.time() - last_use)
+            if remaining <= 0:
+                cooldown_texts.append(f"/{action} ready")
+            else:
+                cooldown_texts.append(f"/{action} {int(remaining)}s")
+    
+    # Перевірка активного mirror стану
+    if user_data.get("mirror_on", False) and time.time() < user_data.get("mirror_until", 0):
+        remaining_mirror = int(user_data["mirror_until"] - time.time())
+        cooldown_texts.append(f"mirror active ({remaining_mirror}s)")
+    elif user_data.get("mirror_on", False):
+        # Mirror закінчився, очищаємо
+        user_data["mirror_on"] = False
+        user_data["mirror_until"] = 0
+    
+    cooldowns_text = ", ".join(cooldown_texts)
 
-🏅 Рівень: {user_data['lvl']} (XP: {user_data['xp']})
-❤️ HP: {user_data['hp_current']}/{user_data['hp_max']} [{hp_bar}]
-⚔️ Атака: {user_data['atk']}
-🛡️ Захист: {user_data['def']}
-💨 Спритність: {user_data['agi']}
-💰 Золото: {user_data['gold']}{weapon_text}{status_text}
-
-🏆 Перемог: {user_data['wins']}
-🪞 Відбито атак: {user_data.get('reflected', 0)}"""
+    # Формування повідомлення
+    text = f"""🛡️ Воїн: {display_name}
+Lvl {user_data['lvl']} (XP {xp_progress})
+HP: {user_data['hp_current']}/{user_data['hp_max']}
+ATK: {user_data['atk']}   DEF: {user_data['def']}   AGI: {user_data['agi']}
+Gold: {user_data['gold']}
+Інвентарь: [{inventory_text}]
+Cooldowns: {cooldowns_text}"""
 
     await message.reply_text(text)
 
 # --- /stats ---
 @app.on_message(filters.command("stats"))
 async def stats_command(client, message):
-    chat_id = str(message.chat.id)
-    user_id = str(message.from_user.id)
-    user_data = ensure_warrior(chat_id, user_id, message.from_user.first_name)
-
-    await message.reply_text(
-        f"📊 Статистика {user_data['username']}:\n"
-        f"🏆 Виграні бої: {user_data['wins']}\n"
-        f"💖 Очки моралі: {user_data['score']}\n"
-        f"🛡 Відбито атак: {user_data['reflected']}"
-    )
+    try:
+        # Збираємо всіх гравців з усіх чатів
+        all_players = []
+        
+        for chat_id, chat_data in karma_data.items():
+            for user_id, user_data in chat_data.items():
+                # Перевіряємо чи є RPG дані
+                if "lvl" in user_data:
+                    all_players.append({
+                        "user_id": user_id,
+                        "chat_id": chat_id,
+                        "data": user_data
+                    })
+        
+        if not all_players:
+            await message.reply_text("❌ Немає даних для відображення статистики.")
+            return
+        
+        # Топ 5 рівнів
+        level_players = sorted(all_players, key=lambda x: x["data"]["lvl"], reverse=True)[:5]
+        
+        # Топ по перемогах
+        wins_players = sorted(all_players, key=lambda x: x["data"]["wins"], reverse=True)[:5]
+        
+        # Топ по завданій шкоді
+        damage_players = sorted(all_players, key=lambda x: x["data"].get("total_damage_dealt", 0), reverse=True)[:5]
+        
+        # Формування повідомлення
+        result_text = "🏆 **Глобальна статистика**\n\n"
+        
+        # Топ рівнів
+        result_text += "🏆 Топ 5 рівнів:\n"
+        for i, player in enumerate(level_players, 1):
+            username = player["data"].get("username", f"Користувач {player['user_id']}")
+            display_name = f"@{username}" if username.startswith("@") else f"@{username}" if username else f"Користувач {player['user_id']}"
+            result_text += f"{i}. {display_name} — Lvl {player['data']['lvl']}\n"
+        
+        result_text += "\n"
+        
+        # Топ по перемогах
+        result_text += "📊 Топ по перемогах:\n"
+        for i, player in enumerate(wins_players, 1):
+            username = player["data"].get("username", f"Користувач {player['user_id']}")
+            display_name = f"@{username}" if username.startswith("@") else f"@{username}" if username else f"Користувач {player['user_id']}"
+            wins = player["data"]["wins"]
+            result_text += f"{i}. {display_name} ({wins})\n"
+        
+        result_text += "\n"
+        
+        # Топ по шкоді
+        result_text += "⚔️ Топ по завданій шкоді:\n"
+        for i, player in enumerate(damage_players, 1):
+            username = player["data"].get("username", f"Користувач {player['user_id']}")
+            display_name = f"@{username}" if username.startswith("@") else f"@{username}" if username else f"Користувач {player['user_id']}"
+            damage = player["data"].get("total_damage_dealt", 0)
+            result_text += f"{i}. {display_name} ({damage} шкоди)\n"
+        
+        await message.reply_text(result_text)
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Помилка при отриманні статистики: {e}")
 
    
 
