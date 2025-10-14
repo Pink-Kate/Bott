@@ -17,10 +17,16 @@ from pyrogram.enums import PollType
 app = Client("my_bot")
 
 # Завантажуємо змінні середовища
-# Спочатку пробуємо локальні файли, потім системні змінні
-load_dotenv('B.env')  # Локальна розробка
-load_dotenv('.env')   # Стандартний файл
-load_dotenv()         # Системні змінні (Railway, Heroku)
+# Railway, Heroku та інші хмарні сервіси використовують системні змінні
+if os.path.exists('B.env'):
+    load_dotenv('B.env')
+    print("📁 Локальна розробка: використовую B.env")
+elif os.path.exists('.env'):
+    load_dotenv('.env')
+    print("📁 Локальна розробка: використовую .env")
+else:
+    # Railway автоматично надає змінні середовища
+    print("☁️ Хмарне розгортання: використовую змінні Railway/Heroku")
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO)
@@ -36,9 +42,12 @@ bot_token = os.getenv('BOT_TOKEN')
 
 if not api_id or not api_hash or not bot_token:
     print("❌ Не знайдено змінні середовища!")
-    print("💡 Локально: створіть .env файл з токенами")
-    print("☁️ Railway/Heroku: додайте змінні в Variables/Config Vars")
-    print("📖 Детальні інструкції: QUICK_START.md")
+    print(f"API_ID: {'✅' if api_id else '❌'}")
+    print(f"API_HASH: {'✅' if api_hash else '❌'}")
+    print(f"BOT_TOKEN: {'✅' if bot_token else '❌'}")
+    print("\n🚂 RAILWAY: Додайте змінні в Dashboard → Variables:")
+    print("   API_ID, API_HASH, BOT_TOKEN, CHANNEL_ID, ADMIN_IDS, ADMIN_USERNAMES")
+    print("\n📖 Детальні інструкції: https://github.com/your-repo/blob/main/QUICK_START.md")
     exit(1)
 
 try:
