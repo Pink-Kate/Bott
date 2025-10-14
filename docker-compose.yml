@@ -19,3 +19,4 @@ services:
       - PIXABAY_API_KEY=${PIXABAY_API_KEY}
     env_file:
       - .env
+

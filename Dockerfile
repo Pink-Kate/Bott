@@ -10,3 +10,4 @@ COPY Bot.py .
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "Bot.py"]
+

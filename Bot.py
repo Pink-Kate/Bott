@@ -17,12 +17,10 @@ from pyrogram.enums import PollType
 app = Client("my_bot")
 
 # Завантажуємо змінні середовища
-if os.path.exists('B.env'):
-    load_dotenv('B.env')
-elif os.path.exists('.env'):
-    load_dotenv('.env')
-else:
-    load_dotenv()
+# Спочатку пробуємо локальні файли, потім системні змінні
+load_dotenv('B.env')  # Локальна розробка
+load_dotenv('.env')   # Стандартний файл
+load_dotenv()         # Системні змінні (Railway, Heroku)
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +35,10 @@ bot_token = os.getenv('BOT_TOKEN')
 
 
 if not api_id or not api_hash or not bot_token:
-    print("❌ Не знайдено змінні середовища. Створіть .env файл або встановіть змінні в Railway/Heroku.")
+    print("❌ Не знайдено змінні середовища!")
+    print("💡 Локально: створіть .env файл з токенами")
+    print("☁️ Railway/Heroku: додайте змінні в Variables/Config Vars")
+    print("📖 Детальні інструкції: QUICK_START.md")
     exit(1)
 
 try:
@@ -130,6 +131,7 @@ app = Client(
 )
 
 
+print(f"🤖 {bot_name} запускається...")
 logger.info(f"{bot_name} успішно ініціалізовано. AI_ENABLED={AI_ENABLED}")
 # --- Логіка команд (для повторного використання у команді та callback) ---
 
