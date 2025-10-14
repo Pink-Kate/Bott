@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from pyrogram.enums import PollType
+from pyrogram.storage import MemoryStorage
 
 
 
@@ -27,6 +28,14 @@ elif os.path.exists('.env'):
 else:
     # Railway автоматично надає змінні середовища
     print("☁️ Хмарне розгортання: використовую змінні Railway/Heroku")
+    print("🔍 Перевіряю доступні змінні середовища...")
+    
+    # Показуємо які змінні є в системі (без значень для безпеки)
+    env_vars = [key for key in os.environ.keys() if any(x in key.upper() for x in ['API', 'BOT', 'TOKEN', 'HASH'])]
+    if env_vars:
+        print(f"📋 Знайдені змінні: {', '.join(env_vars)}")
+    else:
+        print("⚠️ Не знайдено жодних змінних, схожих на конфігурацію бота")
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO)
@@ -136,7 +145,8 @@ app = Client(
     name=session_name,
     api_id=api_id,
     api_hash=api_hash,
-    bot_token=bot_token
+    bot_token=bot_token,
+    storage=MemoryStorage()  # Використовуємо пам'ять замість файлів
 )
 
 
@@ -271,7 +281,7 @@ async def start(client, message):
         BotCommand("yesno", "Гра Так чи Ні"),
         BotCommand("help", "Допомога"),
         BotCommand("character", "Отримати персонажа"),
-        BotCommand("Ya", "Мій опис сьогодні"),
+        BotCommand("ya", "Мій опис сьогодні"),
     ]
     await client.set_bot_commands(commands)
     await message.reply_text("Привіт! Я бот для рандомних опитувань 🎯")
