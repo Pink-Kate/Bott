@@ -586,30 +586,30 @@ def apply_death(user_data):
 # === /shop ===
 @app.on_message(filters.command("shop"))
 async def shop_command(client, message):
-    text = """🛒 **Магазин**
+    text = """🛒 Магазин
 
-**⚔️ Зброя:**
-• Меч +1 — Price: 300 gold — ATK +8 — (рідкість: common)
-• Меч +2 — Price: 600 gold — ATK +15 — (рідкість: rare)
-• Меч +3 — Price: 1200 gold — ATK +25 — (рідкість: epic)
+⚔️ Зброя:
+• Меч +1 - 300 gold - ATK +8
+• Меч +2 - 600 gold - ATK +15  
+• Меч +3 - 1200 gold - ATK +25
 
-**🛡️ Броня:**
-• Щит +1 — Price: 250 gold — DEF +6 — (рідкість: common)
-• Щит +2 — Price: 500 gold — DEF +12 — (рідкість: rare)
-• Щит +3 — Price: 1000 gold — DEF +20 — (рідкість: epic)
+🛡️ Броня:
+• Щит +1 - 250 gold - DEF +6
+• Щит +2 - 500 gold - DEF +12
+• Щит +3 - 1000 gold - DEF +20
 
-**🧪 Зілля:**
-• Зілля лікування (Small) — Price: 50 gold — Відновити 30 HP
-• Зілля лікування (Large) — Price: 120 gold — Відновити 80 HP
+🧪 Зілля:
+• Small Heal - 50 gold - +30 HP
+• Large Heal - 120 gold - +80 HP
 
-**🎯 Тактичні предмети:**
-• Amulet of Reflex — Price: 700 gold — +10% mirror success chance
-• Bomb (Consumable) — Price: 200 gold — Викликає одноразову атаку 70 шкоди
+🎯 Тактичні:
+• Amulet of Reflex - 700 gold - +10% mirror
+• Bomb - 200 gold - 70 damage
 
-**💎 Преміальні:**
-• Token PvP Immunity (1h) — Price: 1000 gold — Заборона на атаку цього гравця протягом 1h
+💎 Преміум:
+• PvP Immunity Token - 1000 gold - 1h protection
 
-**Купівля:** `/buy <item>`"""
+Купівля: /buy <item>"""
     await message.reply_text(text)
 
 
@@ -630,25 +630,25 @@ async def buy_command(client, message):
     # Словник товарів з цінами та ефектами
     shop_items = {
         # Зброя
-        "меч +1": {"price": 300, "type": "weapon", "atk": 8, "rarity": "common"},
-        "меч +2": {"price": 600, "type": "weapon", "atk": 15, "rarity": "rare"},
-        "меч +3": {"price": 1200, "type": "weapon", "atk": 25, "rarity": "epic"},
+        "меч +1": {"price": 300, "type": "weapon", "atk": 8},
+        "меч +2": {"price": 600, "type": "weapon", "atk": 15},
+        "меч +3": {"price": 1200, "type": "weapon", "atk": 25},
         
         # Броня
-        "щит +1": {"price": 250, "type": "armor", "def": 6, "rarity": "common"},
-        "щит +2": {"price": 500, "type": "armor", "def": 12, "rarity": "rare"},
-        "щит +3": {"price": 1000, "type": "armor", "def": 20, "rarity": "epic"},
+        "щит +1": {"price": 250, "type": "armor", "def": 6},
+        "щит +2": {"price": 500, "type": "armor", "def": 12},
+        "щит +3": {"price": 1000, "type": "armor", "def": 20},
         
         # Зілля
-        "зілля лікування (small)": {"price": 50, "type": "potion", "heal": 30},
-        "зілля лікування (large)": {"price": 120, "type": "potion", "heal": 80},
+        "small heal": {"price": 50, "type": "potion", "heal": 30},
+        "large heal": {"price": 120, "type": "potion", "heal": 80},
         
         # Тактичні предмети
         "amulet of reflex": {"price": 700, "type": "tactical", "mirror_bonus": 10},
         "bomb": {"price": 200, "type": "tactical", "damage": 70},
         
         # Преміальні
-        "token pvp immunity": {"price": 1000, "type": "premium", "immunity_hours": 1}
+        "pvp immunity token": {"price": 1000, "type": "premium", "immunity_hours": 1}
     }
     
     # Знаходимо товар
@@ -687,9 +687,9 @@ async def buy_command(client, message):
         result_text += f"DEF збільшено на {item['def']}.\n"
         
     elif item["type"] == "potion":
-        if "small" in item_key:
+        if "small heal" in item_key:
             user_data["inventory"]["potions"]["small_heal"] += 1
-        else:
+        elif "large heal" in item_key:
             user_data["inventory"]["potions"]["large_heal"] += 1
         result_text += f"Зілля додано в інвентар.\n"
         
