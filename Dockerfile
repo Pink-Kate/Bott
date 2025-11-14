@@ -25,3 +25,6 @@ ENV PYTHONUNBUFFERED=1
 
 # Запуск бота
 CMD ["python", "Bot.py"]
+
+
+

@@ -2,6 +2,7 @@ import os
 import logging
 import time
 import random
+import io
 from random import randint, choice
 from datetime import datetime, timedelta
 import requests
@@ -1656,8 +1657,18 @@ async def character_command(client, message):
         return
 
     # Перевірка API ключа
-    if not PIXABAY_API_KEY:
-        await message.reply_text("❌ PIXABAY_API_KEY не налаштований. Додайте його в змінні середовища.")
+    if not PIXABAY_API_KEY or PIXABAY_API_KEY.strip() == "":
+        help_text = (
+            "❌ PIXABAY_API_KEY не налаштований.\n\n"
+            "📝 Як отримати ключ:\n"
+            "1. Зареєструйтесь на https://pixabay.com/api/docs/\n"
+            "2. Створіть безкоштовний акаунт\n"
+            "3. Отримайте API ключ у розділі 'API'\n"
+            "4. Додайте його в B.env файл:\n"
+            "   PIXABAY_API_KEY=ваш_ключ_тут\n\n"
+            "💡 Без ключа команда /character не працюватиме."
+        )
+        await message.reply_text(help_text)
         return
 
     chat_id = str(message.chat.id)
@@ -1676,7 +1687,9 @@ async def character_command(client, message):
             img_url = user_info["character_url"]
             img_resp = requests.get(img_url, timeout=15)
             if img_resp.status_code == 200:
-                await message.reply_photo(img_resp.content)
+                img_bytes = io.BytesIO(img_resp.content)
+                img_bytes.name = "character.jpg"
+                await message.reply_photo(img_bytes)
             else:
                 await message.reply_text("❌ Ви вже отримали персонажа сьогодні, але картинка недоступна. Спробуйте завтра!")
         except Exception as e:
@@ -1702,8 +1715,10 @@ async def character_command(client, message):
                     character_data[chat_id][user_id] = user_info
                     save_json(character_data_file, character_data)
 
-                    # Відправляємо картинку як bytes
-                    await message.reply_photo(img_resp.content)
+                    # Відправляємо картинку як BytesIO
+                    img_bytes = io.BytesIO(img_resp.content)
+                    img_bytes.name = "character.jpg"
+                    await message.reply_photo(img_bytes)
                 else:
                     await message.reply_text(f"❌ Помилка завантаження картинки з Pixabay: {img_resp.status_code}")
             else:
@@ -1813,7 +1828,9 @@ async def ya_command(client, message):
     try:
         img_resp = requests.get(img_url, timeout=15)
         if img_resp.status_code == 200:
-            await message.reply_photo(img_resp.content, caption=caption)
+            img_bytes = io.BytesIO(img_resp.content)
+            img_bytes.name = "character.jpg"
+            await message.reply_photo(img_bytes, caption=caption)
         else:
             await message.reply_text(f"❌ Помилка завантаження картинки: {img_resp.status_code}")
     except Exception as e:

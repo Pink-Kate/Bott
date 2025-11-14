@@ -3,7 +3,7 @@
 B.env
 *.env
 
-# Telegram session files (ВАЖЛИВО!)
+# Telegram session files (не використовуються з MemoryStorage)
 *.session
 *.session-journal
 
