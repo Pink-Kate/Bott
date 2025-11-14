@@ -1670,17 +1670,52 @@ async def get_character_image():
         except Exception as e:
             logger.warning(f"Pixabay API помилка, використовую fallback: {e}")
     
-    # Fallback: безкоштовні картинки без API ключа
+    # Fallback: безкоштовні картинки персонажів без API ключа
+    # Використовуємо кілька джерел для різноманітності
+    
+    # This Person Does Not Exist - генерує випадкові обличчя
     try:
-        # Використовуємо Picsum Photos - безкоштовний сервіс без API ключа
-        # Генеруємо випадковий seed для різноманітності
+        img_url = "https://thispersondoesnotexist.com/image"
+        img_resp = requests.get(img_url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        if img_resp.status_code == 200 and img_resp.headers.get('content-type', '').startswith('image/'):
+            return (img_resp.content, img_url)
+    except Exception as e:
+        logger.warning(f"This Person Does Not Exist не працює: {e}")
+    
+    # Random User API - випадкові фото людей
+    try:
+        gender = random.choice(["men", "women"])
+        num = random.randint(1, 99)
+        img_url = f"https://randomuser.me/api/portraits/{gender}/{num}.jpg"
+        img_resp = requests.get(img_url, timeout=15)
+        if img_resp.status_code == 200 and img_resp.headers.get('content-type', '').startswith('image/'):
+            return (img_resp.content, img_url)
+    except Exception as e:
+        logger.warning(f"Random User API не працює: {e}")
+    
+    # UI Faces - випадкові аватари (через JSON API)
+    try:
+        resp = requests.get("https://uifaces.co/api?limit=1&random", timeout=10, headers={'X-API-KEY': ''})
+        if resp.status_code == 200:
+            data = resp.json()
+            if data and len(data) > 0:
+                img_url = data[0].get("photo", "")
+                if img_url:
+                    img_resp = requests.get(img_url, timeout=15)
+                    if img_resp.status_code == 200:
+                        return (img_resp.content, img_url)
+    except Exception as e:
+        logger.warning(f"UI Faces не працює: {e}")
+    
+    # Останній fallback - використовуємо Picsum з seed для персонажів
+    try:
         seed = random.randint(1, 10000)
-        img_url = f"https://picsum.photos/seed/character{seed}/800/600"
+        img_url = f"https://picsum.photos/seed/portrait{seed}/800/600"
         img_resp = requests.get(img_url, timeout=15)
         if img_resp.status_code == 200:
             return (img_resp.content, img_url)
     except Exception as e:
-        logger.error(f"Fallback картинка не завантажилась: {e}")
+        logger.error(f"Останній fallback не працює: {e}")
     
     return (None, None)
 
