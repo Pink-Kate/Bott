@@ -1655,6 +1655,11 @@ async def character_command(client, message):
         await message.reply_text("❌ Не вдалося визначити користувача.")
         return
 
+    # Перевірка API ключа
+    if not PIXABAY_API_KEY:
+        await message.reply_text("❌ PIXABAY_API_KEY не налаштований. Додайте його в змінні середовища.")
+        return
+
     chat_id = str(message.chat.id)
     user_id = str(message.from_user.id)
     today = datetime.now().date().isoformat()
@@ -1666,7 +1671,16 @@ async def character_command(client, message):
 
     # Якщо персонаж на сьогодні вже створений
     if user_info.get("last_character_date") == today and "character_url" in user_info:
-        await message.reply_text("❌ Ви вже отримали персонажа сьогодні. Спробуйте завтра!")
+        # Завантажуємо збережену картинку
+        try:
+            img_url = user_info["character_url"]
+            img_resp = requests.get(img_url, timeout=15)
+            if img_resp.status_code == 200:
+                await message.reply_photo(img_resp.content)
+            else:
+                await message.reply_text("❌ Ви вже отримали персонажа сьогодні, але картинка недоступна. Спробуйте завтра!")
+        except Exception as e:
+            await message.reply_text(f"❌ Помилка завантаження картинки: {e}")
         return
 
     # Генеруємо нового персонажа
@@ -1678,18 +1692,26 @@ async def character_command(client, message):
             hits = data.get("hits", [])
             if hits:
                 img_url = random.choice(hits)["webformatURL"]
-                # Зберігаємо URL та дату
-                user_info["last_character_date"] = today
-                user_info["character_url"] = img_url
-                character_data[chat_id][user_id] = user_info
-                save_json(character_data_file, character_data)
+                
+                # Завантажуємо картинку як bytes
+                img_resp = requests.get(img_url, timeout=15)
+                if img_resp.status_code == 200:
+                    # Зберігаємо URL та дату
+                    user_info["last_character_date"] = today
+                    user_info["character_url"] = img_url
+                    character_data[chat_id][user_id] = user_info
+                    save_json(character_data_file, character_data)
 
-                await message.reply_photo(img_url)
+                    # Відправляємо картинку як bytes
+                    await message.reply_photo(img_resp.content)
+                else:
+                    await message.reply_text(f"❌ Помилка завантаження картинки з Pixabay: {img_resp.status_code}")
             else:
                 await message.reply_text("Не знайдено жодної картинки персонажа на Pixabay.")
         else:
             await message.reply_text(f"Pixabay API error: {resp.status_code}")
     except Exception as e:
+        logger.error(f"Помилка пошуку картинки: {e}")
         await message.reply_text(f"Помилка пошуку картинки: {e}")
 
 
@@ -1786,7 +1808,17 @@ async def ya_command(client, message):
         f"Мій настрій сьогодні: {mood}\n"
         f"☕ Кількість кави на сьогодні: {coffe} чашок"
     )
-    await message.reply_photo(img_url, caption=caption)
+    
+    # Завантажуємо картинку як bytes
+    try:
+        img_resp = requests.get(img_url, timeout=15)
+        if img_resp.status_code == 200:
+            await message.reply_photo(img_resp.content, caption=caption)
+        else:
+            await message.reply_text(f"❌ Помилка завантаження картинки: {img_resp.status_code}")
+    except Exception as e:
+        logger.error(f"Помилка завантаження картинки для /ya: {e}")
+        await message.reply_text(f"❌ Помилка завантаження картинки: {e}")
 
 
 
