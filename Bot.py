@@ -1649,26 +1649,46 @@ async def show_user_name(client, message):
 
 PIXABAY_API_KEY = os.getenv('PIXABAY_API_KEY')
 
+# Функція для отримання картинки з fallback
+async def get_character_image():
+    """Отримує картинку персонажа, спочатку з Pixabay, якщо немає ключа - з безкоштовного джерела
+    Повертає: (img_content, img_url) або (None, None)"""
+    
+    # Спробуємо Pixabay якщо є ключ
+    if PIXABAY_API_KEY and PIXABAY_API_KEY.strip() != "":
+        try:
+            url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                hits = data.get("hits", [])
+                if hits:
+                    img_url = random.choice(hits)["webformatURL"]
+                    img_resp = requests.get(img_url, timeout=15)
+                    if img_resp.status_code == 200:
+                        return (img_resp.content, img_url)
+        except Exception as e:
+            logger.warning(f"Pixabay API помилка, використовую fallback: {e}")
+    
+    # Fallback: безкоштовні картинки без API ключа
+    try:
+        # Використовуємо Picsum Photos - безкоштовний сервіс без API ключа
+        # Генеруємо випадковий seed для різноманітності
+        seed = random.randint(1, 10000)
+        img_url = f"https://picsum.photos/seed/character{seed}/800/600"
+        img_resp = requests.get(img_url, timeout=15)
+        if img_resp.status_code == 200:
+            return (img_resp.content, img_url)
+    except Exception as e:
+        logger.error(f"Fallback картинка не завантажилась: {e}")
+    
+    return (None, None)
+
 # /character - показує нову картинку раз на день
 @app.on_message(filters.command("character"))
 async def character_command(client, message):
     if not message.from_user:
         await message.reply_text("❌ Не вдалося визначити користувача.")
-        return
-
-    # Перевірка API ключа
-    if not PIXABAY_API_KEY or PIXABAY_API_KEY.strip() == "":
-        help_text = (
-            "❌ PIXABAY_API_KEY не налаштований.\n\n"
-            "📝 Як отримати ключ:\n"
-            "1. Зареєструйтесь на https://pixabay.com/api/docs/\n"
-            "2. Створіть безкоштовний акаунт\n"
-            "3. Отримайте API ключ у розділі 'API'\n"
-            "4. Додайте його в B.env файл:\n"
-            "   PIXABAY_API_KEY=ваш_ключ_тут\n\n"
-            "💡 Без ключа команда /character не працюватиме."
-        )
-        await message.reply_text(help_text)
         return
 
     chat_id = str(message.chat.id)
@@ -1698,33 +1718,21 @@ async def character_command(client, message):
 
     # Генеруємо нового персонажа
     try:
-        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY}&q=cartoon+character&image_type=photo&orientation=horizontal&safesearch=true&per_page=50"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            hits = data.get("hits", [])
-            if hits:
-                img_url = random.choice(hits)["webformatURL"]
-                
-                # Завантажуємо картинку як bytes
-                img_resp = requests.get(img_url, timeout=15)
-                if img_resp.status_code == 200:
-                    # Зберігаємо URL та дату
-                    user_info["last_character_date"] = today
-                    user_info["character_url"] = img_url
-                    character_data[chat_id][user_id] = user_info
-                    save_json(character_data_file, character_data)
+        img_content, img_url = await get_character_image()
+        
+        if img_content and img_url:
+            # Зберігаємо URL та дату
+            user_info["last_character_date"] = today
+            user_info["character_url"] = img_url
+            character_data[chat_id][user_id] = user_info
+            save_json(character_data_file, character_data)
 
-                    # Відправляємо картинку як BytesIO
-                    img_bytes = io.BytesIO(img_resp.content)
-                    img_bytes.name = "character.jpg"
-                    await message.reply_photo(img_bytes)
-                else:
-                    await message.reply_text(f"❌ Помилка завантаження картинки з Pixabay: {img_resp.status_code}")
-            else:
-                await message.reply_text("Не знайдено жодної картинки персонажа на Pixabay.")
+            # Відправляємо картинку
+            img_bytes = io.BytesIO(img_content)
+            img_bytes.name = "character.jpg"
+            await message.reply_photo(img_bytes)
         else:
-            await message.reply_text(f"Pixabay API error: {resp.status_code}")
+            await message.reply_text("❌ Не вдалося завантажити картинку. Спробуйте пізніше.")
     except Exception as e:
         logger.error(f"Помилка пошуку картинки: {e}")
         await message.reply_text(f"Помилка пошуку картинки: {e}")
